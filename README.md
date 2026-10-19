@@ -75,6 +75,12 @@ It reads these files, which other sites can use too:
 | `world.geojson` | coarse world outlines for the World view |
 | `maps/` | all map files and station CSVs |
 
+Country pages can switch from the figures to a **detailed map**: an interactive MapTiler Cloud map
+(Web Mercator, `MAPTILER_STYLE`, default `topo-v2`) with the stations, SOOP lines and popups, where the
+remote and ocean panels stay fixed as insets while the main map pans and zooms; clicking an inset flies
+there. It appears when `MAPTILER_KEY` is set in `.env`; browsers get the key from `/api/config`, so
+restrict it to the site's domain in the MapTiler dashboard. The figures keep their own projections.
+
 A partial build (`icos-maps FR`) updates the existing site instead of replacing it. The GitHub Actions
 workflow in [.github/workflows/maps.yml](.github/workflows/maps.yml) rebuilds every night and on
 demand, and lists the changes in the run summary.

@@ -35,6 +35,8 @@ async function load() {
     $("#load-error").hidden = false;
     return;
   }
+  // Settings for the detailed map (MapTiler key); the site works without them.
+  state.config = await fetch("api/config").then((r) => (r.ok ? r.json() : null)).catch(() => null);
   setupChrome();
   window.addEventListener("hashchange", route);
   window.addEventListener("resize", debounce(drawMap, 150));
@@ -85,6 +87,9 @@ function setupChrome() {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") { const b = state.popupFor; closePopup(); b?.focus(); } });
   window.addEventListener("hashchange", closePopup);
 
+  $("#mode-figures").addEventListener("click", () => setMode("figures"));
+  $("#mode-detailed").addEventListener("click", () => setMode("detailed"));
+
   $("#station-filter").addEventListener("input", renderTable);
   $("#domain-filter").addEventListener("change", renderTable);
   $("#status-filter").addEventListener("change", renderTable);
@@ -107,6 +112,7 @@ function route() {
   if (country) {
     showCountry(country, tab || "maps");
   } else {
+    destroyDetailed();
     state.view = location.hash === "#/world" ? "world" : "europe";
     document.title = state.view === "world" ? "World · ICOS Station Maps" : "ICOS Station Maps";
     for (const v of ["europe", "world"]) $(`#toggle-${v}`).setAttribute("aria-selected", String(v === state.view));
@@ -241,6 +247,9 @@ function showCountry(cc, tab) {
   }).join("");
 
   state.cc = cc;
+  $("#maps-toolbar").hidden = !hasDetailed();
+  if (tab === "maps") applyMode();
+  else destroyDetailed();
   $("#csv-link").href = versioned(`maps/${cc}/${cc}_stations.csv`);
   const unmapped = c.unmapped || [];
   $("#unmapped-note").hidden = !unmapped.length;
@@ -263,9 +272,9 @@ function located(r) {
   return where ? `<dt>Located in</dt><dd>${esc(where)}</dd>` : "";
 }
 
-function stationPopup(r) {
+function stationPopup(r, closable = true) {
   const field = (label, value) => `<dt>${label}</dt><dd>${value ? esc(value) : '<span class="muted">–</span>'}</dd>`;
-  return `<button class="popup-close" aria-label="Close">×</button>
+  return `${closable ? '<button class="popup-close" aria-label="Close">×</button>' : ""}
     <h3>${esc(r.name)}</h3>
     <p class="popup-sub"><span class="code">${esc(r.id)}</span><span class="type"><i style="background:${COLORS[r.theme]}"></i>${THEME_NAMES[r.theme]}</span></p>
     <dl>
@@ -304,6 +313,111 @@ function closePopup() {
   document.querySelector(".station-popup")?.remove();
   state.popupFor?.classList.remove("active");
   state.popupFor = null;
+}
+
+/* ---------- Detailed map: MapTiler in Web Mercator, insets fixed while the main map pans/zooms ---------- */
+
+const MODE_KEY = "icosmaps.mapMode";
+
+function getMode() {
+  try { return localStorage.getItem(MODE_KEY) || "figures"; } catch { return "figures"; }
+}
+
+function setMode(mode) {
+  try { localStorage.setItem(MODE_KEY, mode); } catch { /* per-viewer convenience only */ }
+  applyMode();
+}
+
+function hasDetailed() {
+  return !!(state.config?.maptiler_key && window.maplibregl);
+}
+
+function applyMode() {
+  const detailed = getMode() === "detailed" && hasDetailed();
+  $("#mode-figures").setAttribute("aria-pressed", String(!detailed));
+  $("#mode-detailed").setAttribute("aria-pressed", String(detailed));
+  $("#figures").hidden = detailed;
+  $("#detail-wrap").hidden = !detailed;
+  $("#detail-home").hidden = !detailed;
+  if (detailed) renderDetailed(state.cc);
+  else destroyDetailed();
+}
+
+function styleUrl() {
+  return `https://api.maptiler.com/maps/${encodeURIComponent(state.config.maptiler_style)}/style.json?key=${encodeURIComponent(state.config.maptiler_key)}`;
+}
+
+function destroyDetailed() {
+  (state.dmaps || []).forEach((m) => m.remove());
+  state.dmaps = [];
+  $("#insets").innerHTML = "";
+}
+
+const lngLatBounds = (b) => [[b[0], b[1]], [b[2], b[3]]];
+
+function renderDetailed(cc) {
+  destroyDetailed();
+  const c = state.manifest.countries[cc];
+  const home = c.panels.find((p) => p.kind === "home") || c.panels[0];
+  const main = new maplibregl.Map({
+    container: "detail-map", style: styleUrl(), bounds: lngLatBounds(home.bounds),
+    fitBoundsOptions: { padding: 30 }, attributionControl: { compact: true },
+  });
+  main.addControl(new maplibregl.NavigationControl(), "top-right");
+  main.addControl(new maplibregl.FullscreenControl(), "top-right");
+  main.addControl(new maplibregl.ScaleControl(), "bottom-right");
+  state.dmaps = [main];
+  addStations(main, cc, null, false);
+  $("#detail-home").onclick = () => main.fitBounds(lngLatBounds(home.bounds), { padding: 30 });
+
+  // Remote and ocean panels become fixed insets, as on the print figures; a click flies the main map there.
+  for (const p of c.panels.filter((p) => p !== home)) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "inset";
+    btn.setAttribute("aria-label", `Show figure ${p.key}, ${p.title}, on the map`);
+    btn.innerHTML = `<div class="inset-map"></div><span class="inset-label"><b>${esc(p.key)}</b>${esc(p.kind === "ocean" ? "Ocean" : p.title.replace("Remote stations: ", ""))}</span>`;
+    $("#insets").appendChild(btn);
+    const m = new maplibregl.Map({
+      container: btn.querySelector(".inset-map"), style: styleUrl(), bounds: lngLatBounds(p.bounds),
+      fitBoundsOptions: { padding: 8 }, interactive: false, attributionControl: false,
+    });
+    addStations(m, cc, p.stations, true);
+    btn.addEventListener("click", () => main.fitBounds(lngLatBounds(p.bounds), { padding: 30 }));
+    state.dmaps.push(m);
+  }
+}
+
+function addStations(map, cc, ids, small) {
+  const feats = state.stations.features.filter((f) => f.properties.member === cc && (!ids || ids.includes(f.properties.id)));
+  const lines = feats.filter((f) => f.geometry.type !== "Point");
+  if (lines.length) {
+    map.on("load", () => {
+      map.addSource("soop", { type: "geojson", data: { type: "FeatureCollection", features: lines } });
+      map.addLayer({ id: "soop", type: "line", source: "soop",
+        paint: { "line-color": "#0B3B7A", "line-width": small ? 1 : 1.6, "line-opacity": 0.8 } });
+    });
+  }
+  for (const f of feats) {
+    const r = stationRow(cc, f.properties.id);
+    const el = document.createElement("div");
+    el.className = `dm-marker ${f.properties.theme}${small ? " small" : ""}`;
+    el.style.background = COLORS[f.properties.theme];
+    el.textContent = r?.map_number ?? "";
+    const marker = new maplibregl.Marker({ element: el }).setLngLat(anchorOf(f.geometry)).addTo(map);
+    if (!small && r) {
+      el.title = r.name;
+      marker.setPopup(new maplibregl.Popup({ offset: 14, maxWidth: "320px" }).setHTML(stationPopup(r, false)));
+    }
+  }
+}
+
+// Where to put a SOOP line's number marker: the middle of its longest part.
+function anchorOf(g) {
+  if (g.type === "Point") return g.coordinates;
+  const parts = g.type === "LineString" ? [g.coordinates] : g.coordinates;
+  const longest = parts.reduce((a, b) => (b.length > a.length ? b : a));
+  return longest[Math.floor(longest.length / 2)];
 }
 
 function renderTable() {

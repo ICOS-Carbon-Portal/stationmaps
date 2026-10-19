@@ -111,7 +111,8 @@ def build(out: Path, countries: list[str], formats: list[str], refresh: bool, ov
         for p in panels:
             base = out / "print" / cc / f"{cc}_{p.key}_{p.kind}"
             hotspots = render_panel(p, cc, mapped, numbers, base, formats)
-            entry["panels"].append({"key": p.key, "kind": p.kind, "title": panel_title(p, MEMBERS[cc], st),
+            bounds = hotspots.pop("bounds")  # lon/lat box of the panel, for the interactive map
+            entry["panels"].append({"key": p.key, "kind": p.kind, "title": panel_title(p, MEMBERS[cc], st), "bounds": bounds,
                                     "stations": p.station_ids, "files": {f: f"maps/{cc}/{base.name}.{f}" for f in formats},
                                     "hotspots": hotspots})
             print(f"  {cc} panel {p.key} ({p.kind}): {len(p.station_ids)} stations")

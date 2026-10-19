@@ -33,6 +33,8 @@ RENDER_CACHE = WORK / "render-cache"
 BUILD_AT = os.environ.get("BUILD_AT", "03:00")  # UTC
 KEEP_RELEASES = int(os.environ.get("KEEP_RELEASES", "3"))
 API_TOKEN = os.environ.get("API_TOKEN", "")
+MAPTILER_KEY = os.environ.get("MAPTILER_KEY", "")
+MAPTILER_STYLE = os.environ.get("MAPTILER_STYLE", "topo-v2")
 MAX_BUILDS_KEPT = 20
 
 @contextlib.asynccontextmanager
@@ -188,6 +190,12 @@ def index(request: Request):
     base = str(request.base_url).rstrip("/")
     return {"docs": f"{base}/docs", "status": f"{base}/status", "countries": f"{base}/countries",
             "builds": f"{base}/builds", "map": f"{base}/maps/{{country}}/{{panel}}.{{png|svg|pdf}}"}
+
+
+@app.get("/config", summary="Settings for the website's interactive maps")
+def config():
+    """The MapTiler key is used by browsers to load tiles; restrict it to the site's domain in MapTiler."""
+    return {"maptiler_key": MAPTILER_KEY, "maptiler_style": MAPTILER_STYLE}
 
 
 @app.get("/status", summary="Published maps and build schedule")

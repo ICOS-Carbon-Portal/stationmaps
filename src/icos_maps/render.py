@@ -50,8 +50,9 @@ def setup_fonts():
     })
 
 
-def _extent_lonlat(crs, extent, n=40):
-    """Densified panel boundary transformed to lon/lat bounds, for clipping the basemap."""
+def _extent_lonlat(crs, extent, n=40, pad=2):
+    """Densified panel boundary transformed to lon/lat bounds (padded by `pad` degrees), for clipping
+    the basemap and for framing the panel on the website's interactive map."""
     x0, y0, x1, y1 = extent
     xs = np.concatenate([np.linspace(x0, x1, n), np.full(n, x1), np.linspace(x1, x0, n), np.full(n, x0)])
     ys = np.concatenate([np.full(n, y0), np.linspace(y0, y1, n), np.full(n, y1), np.linspace(y1, y0, n)])
@@ -64,7 +65,7 @@ def _extent_lonlat(crs, extent, n=40):
         # Panel reaches beyond the projection's valid area: keep roughly the visible hemisphere.
         c = gpd.GeoSeries(gpd.points_from_xy([(x0 + x1) / 2], [(y0 + y1) / 2]), crs=crs).to_crs("EPSG:4326").iloc[0]
         return (max(c.x - 95, -180), max(c.y - 85, -90), min(c.x + 95, 180), min(c.y + 85, 90))
-    return (max(lon[ok].min() - 2, -180), max(lat[ok].min() - 2, -90), min(lon[ok].max() + 2, 180), min(lat[ok].max() + 2, 90))
+    return (max(lon[ok].min() - pad, -180), max(lat[ok].min() - pad, -90), min(lon[ok].max() + pad, 180), min(lat[ok].max() + pad, 90))
 
 
 def _basemap(crs, extent, res):
@@ -345,6 +346,7 @@ def render_panel(panel: Panel, cc: str, stations: gpd.GeoDataFrame, numbers: dic
         _locator(fig, ax, panel, cc, frame, corner_box)
     fig.text(0.98, _fy(fig, 1), GISCO_CREDIT, ha="right", va="bottom", fontsize=3.5, color="#777777", gid="credit")
     save(fig, out_base, formats, dpi)
+    hotspots["bounds"] = [round(v, 4) for v in _extent_lonlat(panel.crs, panel.extent, pad=0)]
     return hotspots
 
 

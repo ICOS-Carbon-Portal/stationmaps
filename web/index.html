@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -69,7 +70,18 @@
       <a role="tab" id="tab-stations" aria-controls="panel-stations">Stations</a>
     </div>
     <div id="panel-maps" role="tabpanel" aria-labelledby="tab-maps">
+      <div class="maps-toolbar" id="maps-toolbar" hidden>
+        <div class="view-toggle inline" role="group" aria-label="Map type">
+          <button type="button" id="mode-figures" aria-pressed="true">Figures</button>
+          <button type="button" id="mode-detailed" aria-pressed="false">Detailed map</button>
+        </div>
+        <button type="button" class="ghost" id="detail-home" hidden>↺ Home territory</button>
+      </div>
       <div class="figures" id="figures"></div>
+      <div class="detail-wrap" id="detail-wrap" hidden>
+        <div id="detail-map"></div>
+        <div class="insets" id="insets"></div>
+      </div>
     </div>
     <div id="panel-stations" role="tabpanel" aria-labelledby="tab-stations" hidden>
       <div class="toolbar">
@@ -110,6 +122,7 @@
 </footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

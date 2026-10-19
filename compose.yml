@@ -13,6 +13,8 @@ services:
       BUILD_AT: "${BUILD_AT:-03:00}"  # UTC
       KEEP_RELEASES: "3"
       API_TOKEN: "${API_TOKEN:-}"
+      MAPTILER_KEY: "${MAPTILER_KEY:-}"      # detailed (interactive) country maps
+      MAPTILER_STYLE: "${MAPTILER_STYLE:-topo-v2}"
     volumes:
       - cache:/app/cache  # downloaded metadata, ocean tracks, boundaries
       - work:/data/work   # build output, build logs, render cache
