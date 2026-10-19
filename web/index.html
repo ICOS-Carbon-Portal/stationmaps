@@ -13,12 +13,11 @@
 <body>
 <header class="topbar">
   <a class="brand" href="#/" aria-label="ICOS Station Maps, Europe overview">
-    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
-      <circle cx="10" cy="11" r="6" fill="var(--atmosphere)"/>
-      <circle cx="22" cy="11" r="6" fill="var(--ecosystem)"/>
-      <circle cx="16" cy="21.5" r="6" fill="var(--ocean)"/>
-    </svg>
-    <span><strong>ICOS</strong> Station Maps</span>
+    <picture>
+      <source srcset="icos-logo-dark.svg" media="(prefers-color-scheme: dark)">
+      <img class="brand-logo" src="icos-logo.svg" alt="ICOS, Integrated Carbon Observation System" width="1682" height="508">
+    </picture>
+    <span class="brand-name">Station Maps</span>
   </a>
   <label class="country-select">
     <span class="visually-hidden">Country</span>
