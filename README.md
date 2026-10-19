@@ -29,9 +29,7 @@ print/<CC>/<CC>_a_home.*                  home territory
 print/<CC>/<CC>_b_remote.*                overseas / remote stations (Réunion, Guiana, Svalbard, Greenland, Canaries)
 print/<CC>/<CC>_c_ocean.*                 SOOP routes and offshore fixed ocean stations
 print/<CC>/<CC>_stations.csv              station table, same numbers as on the map
-web/stations.geojson                      all mapped stations with their map numbers
-web/manifest.json                         build time, panels and files per country, stations without geometry
-web/index.html                            example interactive map for the website (Leaflet, reads stations.geojson)
+web/                                      static website (serve this folder), see below
 CHANGES.txt                               stations added / removed / changed since the previous build
 ```
 
@@ -52,11 +50,24 @@ Colours, the multi-domain distance and the track window are set in [config.py](s
 
 ## Website
 
-The website can either embed the generated PNG/SVG maps (stable paths in `web/manifest.json`) or draw
-its own interactive map from `web/stations.geojson`; [web/index.html](web/index.html) is a minimal
-example. The GitHub Actions workflow in [.github/workflows/maps.yml](.github/workflows/maps.yml)
-rebuilds every night and on demand, and lists the changes in the run summary. Point its output at
-wherever the website reads from, such as a static bucket or GitHub Pages.
+`out/web/` is a self-contained static site, built from [web/](web/): a Europe front page where you
+click a member country (or pick one from the dropdown), then that country's map panels with SVG/PDF/PNG
+downloads and a sortable, filterable station table. Links are shareable (`#/FR`, `#/FR/stations`).
+Serve the folder with any web server, e.g. `python -m http.server -d out/web`.
+
+It reads these files, which other sites can use too:
+
+| File | Content |
+|---|---|
+| `manifest.json` | build time, counts, panels and file paths per country, stations without geometry |
+| `tables.json` | station table rows per country |
+| `stations.geojson` | all mapped stations (points and SOOP lines) with their map numbers |
+| `countries.geojson` | simplified European country outlines for the front-page map |
+| `maps/` | all map files and station CSVs |
+
+A partial build (`icos-maps FR`) updates the existing site instead of replacing it. The GitHub Actions
+workflow in [.github/workflows/maps.yml](.github/workflows/maps.yml) rebuilds every night and on
+demand, and lists the changes in the run summary.
 
 ## Known gaps in the source data
 

@@ -3,56 +3,102 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ICOS Station Network</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>
-  :root { --ocean: #00A6C8; --atmosphere: #E5007D; --ecosystem: #AFCA0B; --soop: #0B3B7A; }
-  html, body { margin: 0; height: 100%; font-family: "Open Sans", system-ui, sans-serif; background: #fff; }
-  #map { position: absolute; inset: 0; }
-  .legend { background: #fff; padding: 8px 10px; font-size: 13px; line-height: 1.6; border-radius: 4px; }
-  .legend i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
-  .legend .line { border-radius: 0; height: 2px; vertical-align: 3px; }
-  .meta { color: #666; font-size: 11px; }
-</style>
+<title>ICOS Station Maps</title>
+<meta name="description" content="Maps and station tables of the ICOS greenhouse gas observation network, per member country.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="map"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-// Example embed for icos-ri.eu: reads the stations.geojson published next to this page by `icos-maps`.
-const COLORS = { ocean: "#00A6C8", atmosphere: "#E5007D", ecosystem: "#AFCA0B" };
-const map = L.map("map", { worldCopyJump: true }).setView([55, 10], 4);
-L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
-  attribution: "&copy; OpenStreetMap contributors &copy; CARTO", maxZoom: 12,
-}).addTo(map);
+<header class="topbar">
+  <a class="brand" href="#/" aria-label="ICOS Station Maps, Europe overview">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="10" cy="11" r="6" fill="var(--atmosphere)"/>
+      <circle cx="22" cy="11" r="6" fill="var(--ecosystem)"/>
+      <circle cx="16" cy="21.5" r="6" fill="var(--ocean)"/>
+    </svg>
+    <span><strong>ICOS</strong> Station Maps</span>
+  </a>
+  <label class="country-select">
+    <span class="visually-hidden">Country</span>
+    <select id="country-select">
+      <option value="">Europe overview</option>
+    </select>
+  </label>
+  <p class="updated" id="updated"></p>
+</header>
 
-const legend = L.control({ position: "bottomright" });
-legend.onAdd = () => {
-  const d = L.DomUtil.create("div", "legend");
-  d.innerHTML = Object.entries(COLORS).map(([k, c]) => `<i style="background:${c}"></i>${k[0].toUpperCase() + k.slice(1)} Station`).join("<br>")
-    + `<br><i class="line" style="background:var(--soop)"></i>Ship of Opportunity (SOOP) Line<div class="meta" id="generated"></div>`;
-  return d;
-};
-legend.addTo(map);
+<main>
+  <section id="view-europe" class="view" hidden>
+    <div class="europe-layout">
+      <div class="map-card">
+        <svg id="europe-map" role="img" aria-label="Map of Europe with the ICOS member countries highlighted"></svg>
+        <div id="tooltip" class="tooltip" role="status" hidden></div>
+        <ul class="map-legend" aria-label="Legend">
+          <li><i style="background:var(--atmosphere)"></i>Atmosphere</li>
+          <li><i style="background:var(--ecosystem)"></i>Ecosystem</li>
+          <li><i style="background:var(--ocean)"></i>Ocean</li>
+          <li><i class="line"></i>SOOP line</li>
+        </ul>
+      </div>
+      <aside class="side">
+        <h1>ICOS Station Network</h1>
+        <p class="lede">Standardised greenhouse gas observations across Europe. Click a member country on the map, or pick one above, to see its station maps and station table.</p>
+        <div class="tiles" id="europe-tiles"></div>
+        <h2>Member countries</h2>
+        <ul class="country-list" id="country-list"></ul>
+        <div class="overview-dl" id="overview-dl"></div>
+      </aside>
+    </div>
+  </section>
 
-function popup(p) {
-  const rows = [["Station", p.name], ["ID", p.id], ["Type", p.theme_label], ["Class", p.cls], ["Labelled", p.labeled || "–"], ["Host", p.host || "–"]];
-  return rows.map(([k, v]) => `<b>${k}:</b> ${v}`).join("<br>") + `<br><a href="${p.uri}" target="_blank" rel="noopener">Station page</a>`;
-}
+  <section id="view-country" class="view" hidden>
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="#/">Europe</a><span aria-hidden="true">/</span><span id="crumb-country"></span></nav>
+    <div class="country-head">
+      <h1 id="country-name"></h1>
+      <div class="chips" id="country-chips"></div>
+    </div>
+    <div class="tabs" role="tablist">
+      <a role="tab" id="tab-maps" aria-controls="panel-maps">Maps</a>
+      <a role="tab" id="tab-stations" aria-controls="panel-stations">Stations</a>
+    </div>
+    <div id="panel-maps" role="tabpanel" aria-labelledby="tab-maps">
+      <div class="figures" id="figures"></div>
+    </div>
+    <div id="panel-stations" role="tabpanel" aria-labelledby="tab-stations" hidden>
+      <div class="toolbar">
+        <input type="search" id="station-filter" placeholder="Filter stations…" aria-label="Filter stations">
+        <select id="domain-filter" aria-label="Filter by domain">
+          <option value="">All domains</option>
+          <option value="atmosphere">Atmosphere</option>
+          <option value="ecosystem">Ecosystem</option>
+          <option value="ocean">Ocean</option>
+        </select>
+        <span class="count" id="station-count"></span>
+        <a class="button" id="csv-link" download>Download CSV</a>
+      </div>
+      <div class="table-wrap">
+        <table id="station-table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="note" id="unmapped-note" hidden></p>
+    </div>
+  </section>
 
-fetch("stations.geojson").then(r => r.json()).then(data => {
-  const layer = L.geoJSON(data, {
-    style: f => ({ color: "#0B3B7A", weight: 1.2, opacity: 0.8 }),
-    pointToLayer: (f, latlng) => L.circleMarker(latlng, {
-      radius: 6, color: "#fff", weight: 1, fillColor: COLORS[f.properties.theme], fillOpacity: 1,
-    }),
-    onEachFeature: (f, l) => l.bindPopup(popup(f.properties)),
-  }).addTo(map);
-  layer.eachLayer(l => l.feature.geometry.type === "Point" && l.bringToFront());
-});
-fetch("manifest.json").then(r => r.json()).then(m => {
-  document.getElementById("generated").textContent = `${m.n_stations} stations · updated ${m.generated.slice(0, 10)}`;
-}).catch(() => {});
-</script>
+  <p id="load-error" class="load-error" hidden>The map data could not be loaded. Run <code>icos-maps</code> and serve the <code>out/web</code> folder.</p>
+</main>
+
+<footer class="footer">
+  Station metadata: <a href="https://meta.icos-cp.eu/" rel="noopener">ICOS Carbon Portal</a> ·
+  Ocean routes: <a href="https://zarr.icos-cp.eu/" rel="noopener">ICOS ocean Zarr store</a> ·
+  Boundaries © EuroGeographics ·
+  <a href="https://github.com/ICOS-Carbon-Portal/stationmaps" rel="noopener">Source code</a>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
