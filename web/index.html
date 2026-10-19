@@ -32,6 +32,10 @@
   <section id="view-europe" class="view" hidden>
     <div class="europe-layout">
       <div class="map-card">
+        <div class="view-toggle" role="tablist" aria-label="Map extent">
+          <a role="tab" id="toggle-europe" href="#/">Europe</a>
+          <a role="tab" id="toggle-world" href="#/world">World</a>
+        </div>
         <svg id="europe-map" role="img" aria-label="Map of Europe with the ICOS member countries highlighted"></svg>
         <div id="tooltip" class="tooltip" role="status" hidden></div>
         <ul class="map-legend" aria-label="Legend">
@@ -47,6 +51,8 @@
         <div class="tiles" id="europe-tiles"></div>
         <h2>Member countries</h2>
         <ul class="country-list" id="country-list"></ul>
+        <h2>Stations outside Europe</h2>
+        <ul class="country-list outside-list" id="outside-list"></ul>
         <div class="overview-dl" id="overview-dl"></div>
       </aside>
     </div>

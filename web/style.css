@@ -81,6 +81,14 @@ main { flex: 1; width: 100%; max-width: 1360px; margin: 0 auto; padding: 20px 16
 #europe-map .country.member { fill: var(--member); stroke: var(--brand); stroke-width: .8; cursor: pointer; transition: fill .12s; }
 #europe-map .country.member:hover, #europe-map .country.member.hover { fill: var(--member-hover); }
 #europe-map .country.member:focus-visible { outline: none; fill: var(--member-hover); stroke-width: 2; }
+#europe-map .sphere { fill: color-mix(in srgb, var(--brand) 5%, var(--card)); stroke: var(--line); }
+.view-toggle {
+  position: absolute; top: 12px; right: 12px; z-index: 1; display: flex; padding: 3px; gap: 2px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow);
+}
+.view-toggle a { padding: 5px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--muted); text-decoration: none; }
+.view-toggle a[aria-selected="true"] { background: var(--brand); color: #fff; }
+.view-toggle a:hover:not([aria-selected="true"]) { color: var(--ink); }
 #europe-map .soop { fill: none; stroke: var(--soop); stroke-width: .5; opacity: .3; pointer-events: none; }
 #europe-map .station { stroke: var(--card); stroke-width: .6; pointer-events: none; }
 .tooltip {
@@ -116,6 +124,9 @@ main { flex: 1; width: 100%; max-width: 1360px; margin: 0 auto; padding: 20px 16
 }
 .country-list a:hover, .country-list a.hover { background: color-mix(in srgb, var(--brand) 12%, transparent); }
 .country-list .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+.outside-list { grid-template-columns: 1fr; }
+.outside-list a, .outside-list .row { display: flex; justify-content: space-between; gap: 8px; padding: 5px 10px; font-size: 13px; border-radius: 6px; }
+.outside-list i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
 .overview-dl { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
 .overview-dl a { margin-left: 6px; }
 

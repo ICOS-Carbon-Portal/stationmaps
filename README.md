@@ -53,9 +53,10 @@ Colours, the multi-domain distance and the track window are set in [config.py](s
 
 ## Website
 
-`out/web/` is a self-contained static site, built from [web/](web/): a Europe front page where you
-click a member country (or pick one from the dropdown), then that country's map panels with SVG/PDF/PNG
-downloads and a sortable, filterable station table. Links are shareable (`#/FR`, `#/FR/stations`).
+`out/web/` is a self-contained static site, built from [web/](web/): a front page with a Europe and a
+World view (the latter shows the stations in Africa, South America and overseas territories, and lists
+them in the side panel), where you click a member country (or pick one from the dropdown), then that country's map panels with SVG/PDF/PNG
+downloads and a sortable, filterable station table. Links are shareable (`#/world`, `#/FR`, `#/FR/stations`).
 Serve the folder with any web server, e.g. `python -m http.server -d out/web`.
 
 It reads these files, which other sites can use too:
@@ -66,6 +67,7 @@ It reads these files, which other sites can use too:
 | `tables.json` | station table rows per country |
 | `stations.geojson` | all mapped stations (points and SOOP lines) with their map numbers |
 | `countries.geojson` | simplified European country outlines for the front-page map |
+| `world.geojson` | coarse world outlines for the World view |
 | `maps/` | all map files and station CSVs |
 
 A partial build (`icos-maps FR`) updates the existing site instead of replacing it. The GitHub Actions

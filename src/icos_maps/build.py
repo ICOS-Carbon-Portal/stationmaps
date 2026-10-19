@@ -8,7 +8,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
-from shapely.geometry import MultiPolygon, box
+from shapely.geometry import MultiPolygon, Polygon, box
 from shapely.geometry.polygon import orient
 
 from .basemap import countries as gisco_countries
@@ -157,6 +157,24 @@ def europe_countries() -> gpd.GeoDataFrame:
     return world[world.geometry.geom_type.isin(["Polygon", "MultiPolygon"])][["CNTR_ID", "NAME_ENGL", "member", "geometry"]]
 
 
+def _drop_specks(g, min_area=0.002):
+    """Remove polygon parts too small to see at world scale; once simplified, their winding can flip,
+    and d3-geo would then draw them as covering the whole globe."""
+    parts = [p for p in getattr(g, "geoms", [g]) if p.geom_type == "Polygon" and p.area >= min_area]
+    return MultiPolygon(parts) if len(parts) > 1 else (parts[0] if parts else Polygon())
+
+
+def world_countries() -> gpd.GeoDataFrame:
+    """Coarse world outlines for the front page's world view (Antarctica left out)."""
+    world = gisco_countries("60")
+    world = world[world["CNTR_ID"] != "AQ"].copy()
+    gisco_to_iso = {ISO_TO_GISCO.get(cc, cc): cc for cc in MEMBERS}
+    world["member"] = world["CNTR_ID"].map(gisco_to_iso).fillna("")
+    world["geometry"] = world.geometry.simplify(0.05).apply(_drop_specks).apply(_clockwise)
+    world = world[~world.geometry.is_empty]
+    return world[world.geometry.geom_type.isin(["Polygon", "MultiPolygon"])][["CNTR_ID", "NAME_ENGL", "member", "geometry"]]
+
+
 def write_site(out: Path, web: Path, stations, all_numbers, manifest, tables):
     """Static website: the app from web/, the maps, and the data it reads."""
     web.mkdir(parents=True, exist_ok=True)
@@ -174,5 +192,6 @@ def write_site(out: Path, web: Path, stations, all_numbers, manifest, tables):
     # Full list including stations without geometry; the next build diffs against it.
     pd.DataFrame(stations.drop(columns="geometry")).to_csv(web / "stations.csv", index=False)
     europe_countries().to_file(web / "countries.geojson", driver="GeoJSON", COORDINATE_PRECISION=3)
+    world_countries().to_file(web / "world.geojson", driver="GeoJSON", COORDINATE_PRECISION=2)
     (web / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
     (web / "tables.json").write_text(json.dumps(tables, ensure_ascii=False))
