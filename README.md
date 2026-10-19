@@ -69,6 +69,22 @@ A partial build (`icos-maps FR`) updates the existing site instead of replacing 
 workflow in [.github/workflows/maps.yml](.github/workflows/maps.yml) rebuilds every night and on
 demand, and lists the changes in the run summary.
 
+## Running with Docker
+
+```
+docker compose up -d --build   # site on 127.0.0.1:8120; set BIND / PORT in .env to change
+docker compose logs -f builder
+```
+
+The `builder` container builds the maps on start and then every day at `BUILD_AT` (UTC, default
+03:00). Each build is published as a new release and switched in atomically; the last three are kept,
+and a failed build leaves the previous site online. `web` is nginx serving the current release.
+The change report of each build is at `/CHANGES.txt` on the site.
+
+Production: VM 117 (zarr-tools, 10.10.10.153) in `/opt/icosmaps` with `BIND=10.10.10.153`; Caddy on
+fsicos4 publishes it as https://icosmaps.fs4vm.icos-cp.eu. To deploy a new version:
+`cd /opt/icosmaps && git pull && docker compose up -d --build`.
+
 ## Known gaps in the source data
 
 - Ecosystem stations have no responsible organisation in the metadata, so the "Host institute" column is

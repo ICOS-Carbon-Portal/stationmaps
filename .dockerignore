@@ -1,0 +1,6 @@
+.git
+.github
+.venv
+cache
+out
+*.code-workspace
