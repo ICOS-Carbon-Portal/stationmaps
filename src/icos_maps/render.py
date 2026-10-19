@@ -315,7 +315,8 @@ def draw_stations(ax, stations: gpd.GeoDataFrame, extent, numbers: dict | None, 
     return moved
 
 
-def render_panel(panel: Panel, cc: str, stations: gpd.GeoDataFrame, numbers: dict, out_base: FilePath, formats, res="03"):
+def render_panel(panel: Panel, cc: str, stations: gpd.GeoDataFrame, numbers: dict, out_base: FilePath, formats, res="03",
+                 dpi=300, marker_scale=1.0):
     st = stations[stations["id"].isin(panel.station_ids)].to_crs(panel.crs)
     focus = gpd.GeoSeries([territory_geom(cc)], crs="EPSG:4326")
     focus = gpd.clip(focus, box(*_extent_lonlat(panel.crs, panel.extent))).to_crs(panel.crs)
@@ -329,7 +330,7 @@ def render_panel(panel: Panel, cc: str, stations: gpd.GeoDataFrame, numbers: dic
     world = _basemap(panel.crs, panel.extent, res if panel.kind != "ocean" else "10")
     _draw_polys(ax, world.geometry, "other-countries", facecolor=COLORS["other_land"], edgecolor=COLORS["border"], linewidth=0.4, zorder=1)
     _draw_polys(ax, focus, "focus-country", facecolor=COLORS["focus_land"], edgecolor=COLORS["border"], linewidth=0.6, zorder=2)
-    marker_pt = marker_size(ax)
+    marker_pt = marker_size(ax) * marker_scale
     moved = draw_stations(ax, st, panel.extent, numbers, marker_pt=marker_pt)
     hotspots = marker_positions(fig, ax, st["id"], moved, marker_pt)
     _scalebar(fig, ax, panel.extent)
@@ -338,7 +339,7 @@ def render_panel(panel: Panel, cc: str, stations: gpd.GeoDataFrame, numbers: dic
     if frame:
         _locator(fig, ax, panel, cc, frame, corner_box)
     fig.text(0.98, _fy(fig, 1), GISCO_CREDIT, ha="right", va="bottom", fontsize=3.5, color="#777777", gid="credit")
-    save(fig, out_base, formats)
+    save(fig, out_base, formats, dpi)
     return hotspots
 
 
@@ -351,11 +352,11 @@ def marker_positions(fig, ax, ids, xy, marker_pt):
             "points": [{"id": i, "x": round(float(x / w), 5), "y": round(float(1 - y / h), 5)} for i, (x, y) in zip(ids, disp)]}
 
 
-def save(fig, out_base: FilePath, formats):
+def save(fig, out_base: FilePath, formats, dpi=300):
     out_base.parent.mkdir(parents=True, exist_ok=True)
     for fmt in formats:
         kw = {"metadata": {"Date": None}} if fmt == "svg" else {}
         if fmt == "pdf":
             kw = {"metadata": {"CreationDate": None}}
-        fig.savefig(out_base.with_suffix(f".{fmt}"), dpi=300 if fmt == "png" else None, facecolor="white", **kw)
+        fig.savefig(out_base.with_suffix(f".{fmt}"), dpi=dpi if fmt == "png" else None, facecolor="white", **kw)
     plt.close(fig)

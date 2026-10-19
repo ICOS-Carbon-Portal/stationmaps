@@ -1,5 +1,5 @@
-# Builder image: runs `icos-maps` on a schedule and publishes the site to a shared volume
-# (see docker/builder.sh); nginx serves that volume (compose.yml).
+# App image: the REST API (icos_maps.api), which also builds the maps nightly and on request and
+# publishes the site to a shared volume; nginx serves that volume and proxies /api (compose.yml).
 FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.12.20 /uv /usr/local/bin/uv
@@ -18,5 +18,5 @@ COPY assets ./assets
 COPY web ./web
 RUN uv sync --frozen --no-dev
 
-COPY docker/builder.sh /usr/local/bin/builder.sh
-CMD ["builder.sh"]
+EXPOSE 8000
+CMD ["icos-maps-api"]

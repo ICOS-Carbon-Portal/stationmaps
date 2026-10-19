@@ -77,18 +77,39 @@ demand, and lists the changes in the run summary.
 ## Running with Docker
 
 ```
-docker compose up -d --build   # site on 127.0.0.1:8120; set BIND / PORT in .env to change
-docker compose logs -f builder
+docker compose up -d --build   # site on 127.0.0.1:8120; set BIND / PORT / API_TOKEN in .env
+docker compose logs -f api
 ```
 
-The `builder` container builds the maps on start and then every day at `BUILD_AT` (UTC, default
-03:00). Each build is published as a new release and switched in atomically; the last three are kept,
-and a failed build leaves the previous site online. `web` is nginx serving the current release.
-The change report of each build is at `/CHANGES.txt` on the site.
+The `api` container builds the maps on start and then every day at `BUILD_AT` (UTC, default 03:00),
+and on request through the REST API. Each build is published as a new release and switched in
+atomically; the last three are kept, and a failed build leaves the previous site online. `web` is
+nginx serving the current release and proxying `/api/`. The change report of each build is at
+`/CHANGES.txt` on the site.
 
 Production: VM 117 (zarr-tools, 10.10.10.153) in `/opt/icosmaps` with `BIND=10.10.10.153`; Caddy on
 fsicos4 publishes it as https://icosmaps.fs4vm.icos-cp.eu. To deploy a new version:
-`cd /opt/icosmaps && git pull && docker compose up -d --build`.
+`cd /opt/icosmaps && git pull && docker compose up -d --build --remove-orphans`.
+
+## REST API
+
+Interactive documentation at `/api/docs` (OpenAPI at `/api/openapi.json`).
+
+| Endpoint | |
+|---|---|
+| `GET /api/status` | published release, build time, station count, next scheduled build, running build, change report |
+| `GET /api/countries`, `GET /api/countries/{cc}` | panels and file URLs; one country with its station table |
+| `GET /api/maps/{cc}/{panel}.{png,svg,pdf}` | one map; `?dpi=72–600` (PNG) and `?marker_scale=0.5–3` render it on request and cache it until the next build, default options redirect to the published file |
+| `POST /api/builds` | start a build: `{"countries": ["FR"], "refresh": true}` (empty list = all); needs `Authorization: Bearer $API_TOKEN` |
+| `GET /api/builds`, `GET /api/builds/{id}` | recent builds; one build with the end of its log |
+
+```
+curl -X POST https://icosmaps.fs4vm.icos-cp.eu/api/builds -H "Authorization: Bearer $API_TOKEN" \
+     -H "Content-Type: application/json" -d '{"countries": ["FR"]}'
+curl -o fr.png "https://icosmaps.fs4vm.icos-cp.eu/api/maps/FR/a.png?dpi=150&marker_scale=1.5"
+```
+
+Builds over the API are disabled when `API_TOKEN` is not set.
 
 ## Known gaps in the source data
 

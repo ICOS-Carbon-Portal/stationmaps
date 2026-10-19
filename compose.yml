@@ -1,25 +1,28 @@
-# ICOS Station Maps: a builder that regenerates the maps every night, and nginx serving the site.
-# Set BIND/PORT in .env to choose where the site is published (default 127.0.0.1:8120).
+# ICOS Station Maps: the API/builder (rebuilds nightly and on request) and nginx serving the site.
+# Set BIND/PORT in .env to choose where the site is published (default 127.0.0.1:8120), and API_TOKEN
+# to allow starting builds over the API.
 name: icosmaps
 
 services:
-  builder:
+  api:
     build: .
-    image: icosmaps-builder:latest
-    container_name: icosmaps-builder
+    image: icosmaps-api:latest
+    container_name: icosmaps-api
     restart: unless-stopped
     environment:
       BUILD_AT: "${BUILD_AT:-03:00}"  # UTC
       KEEP_RELEASES: "3"
+      API_TOKEN: "${API_TOKEN:-}"
     volumes:
       - cache:/app/cache  # downloaded metadata, ocean tracks, boundaries
-      - work:/data/work   # build output; keeps the previous station list for the change report
+      - work:/data/work   # build output, build logs, render cache
       - site:/data/site   # published releases + `current` symlink
 
   web:
     image: nginx:1.27-alpine
     container_name: icosmaps-web
     restart: unless-stopped
+    depends_on: [api]
     ports:
       - "${BIND:-127.0.0.1}:${PORT:-8120}:80"
     volumes:
