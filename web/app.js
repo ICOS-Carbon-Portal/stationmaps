@@ -5,6 +5,9 @@
 const COLORS = { atmosphere: "var(--atmosphere)", ecosystem: "var(--ecosystem)", ocean: "var(--ocean)" };
 const THEME_NAMES = { atmosphere: "Atmosphere", ecosystem: "Ecosystem", ocean: "Ocean" };
 const PANEL_KIND = { home: "Home territory", remote: "Remote stations", ocean: "Ocean" };
+// Every map is shown at the width where its station markers are this many pixels across, so markers
+// look the same on all panels (the renderer sizes them relative to each map; see manifest hotspots.r).
+const MARKER_PX = 14;
 const COLUMNS = [
   { key: "map_number", label: "Map no.", cls: "num" },
   { key: "name", label: "Station name" },
@@ -209,15 +212,15 @@ function showCountry(cc, tab) {
   }
 
   const figs = $("#figures");
-  figs.classList.toggle("single", c.panels.length === 1);
-  figs.innerHTML = c.panels.map((p, i) => {
+  figs.innerHTML = c.panels.map((p) => {
     const img = p.files.png || p.files.svg;
     const spots = (p.hotspots?.points || []).map((h) => {
       const row = stationRow(cc, h.id);
       return `<button class="hotspot" data-id="${esc(h.id)}" style="left:${h.x * 100}%;top:${h.y * 100}%;width:${p.hotspots.r * 200}%"
         aria-label="${esc(row?.name ?? h.id)}: station details"></button>`;
     }).join("");
-    return `<figure class="figure${i === 0 && c.panels.length > 1 ? " lead" : ""}">
+    const width = p.hotspots?.r ? Math.round(MARKER_PX / (2 * p.hotspots.r)) : 600;
+    return `<figure class="figure" style="width:${width}px">
       <div class="map-frame">
         <img src="${esc(img)}" alt="${esc(`${c.name}: ${p.title}. Map of ${p.stations.length} stations.`)}" loading="lazy">
         ${spots}

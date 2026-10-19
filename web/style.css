@@ -144,10 +144,8 @@ main { flex: 1; width: 100%; max-width: 1360px; margin: 0 auto; padding: 20px 16
 .tabs a[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--brand); }
 .tabs a:hover { color: var(--ink); }
 
-.figures { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; align-items: start; }
-.figures.single { grid-template-columns: minmax(0, 860px); }
-.figure { margin: 0; overflow: hidden; }
-.figure.lead { grid-column: 1 / -1; max-width: 860px; }
+.figures { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.figure { margin: 0; overflow: hidden; max-width: 100%; }  /* width set per map from its marker size */
 .map-frame { position: relative; background: #fff; }
 .figure img { display: block; width: 100%; height: auto; }
 .hotspot {
@@ -237,7 +235,6 @@ td.date { white-space: nowrap; font-variant-numeric: tabular-nums; }
   .brand-name { display: none; }
   .country-select { flex: 1; }
   .country-select select { width: 100%; min-width: 0; }
-  .figures { grid-template-columns: 1fr; }
   .toolbar input { min-width: 0; flex: 1 1 100%; }
   .button { margin-left: 0; }
   .country-head h1 { font-size: 24px; }
