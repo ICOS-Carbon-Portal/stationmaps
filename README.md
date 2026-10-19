@@ -89,7 +89,10 @@ nginx serving the current release and proxying `/api/`. The change report of eac
 
 Production: VM 117 (zarr-tools, 10.10.10.153) in `/opt/icosmaps` with `BIND=10.10.10.153`; Caddy on
 fsicos4 publishes it as https://icosmaps.fs4vm.icos-cp.eu. To deploy a new version:
-`cd /opt/icosmaps && git pull && docker compose up -d --build --remove-orphans`.
+`cd /opt/icosmaps && git pull && docker compose up -d --build --remove-orphans`. When
+`docker/nginx.conf` changed, also run `docker compose up -d --force-recreate web`: the file is
+bind-mounted, and `git pull` replaces it with a new file the running container does not see.
+The API token is `API_TOKEN` in `/opt/icosmaps/.env` (mode 600).
 
 ## REST API
 
