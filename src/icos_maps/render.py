@@ -21,8 +21,8 @@ from matplotlib.patches import Polygon as MplPolygon
 from matplotlib.patches import Rectangle
 from shapely.geometry import box
 
-from .basemap import countries
-from .config import COLORS, FONTS, GISCO_CREDIT, THEME_LABEL
+from .basemap import countries, country_geom
+from .config import COLORS, FONTS, GISCO_CREDIT, TERRITORIES, THEME_LABEL
 from .layout import Panel, local_crs, territory_geom
 
 MM = 1 / 25.4
@@ -329,6 +329,11 @@ def render_panel(panel: Panel, cc: str, stations: gpd.GeoDataFrame, numbers: dic
     fig, ax = new_map_figure(panel.extent)
     world = _basemap(panel.crs, panel.extent, res if panel.kind != "ocean" else "10")
     _draw_polys(ax, world.geometry, "other-countries", facecolor=COLORS["other_land"], edgecolor=COLORS["border"], linewidth=0.4, zorder=1)
+    host_codes = [c for c in st["country"].unique() if c not in TERRITORIES.get(cc, [cc])]
+    if host_codes:
+        host = gpd.GeoSeries([country_geom(c) for c in host_codes], crs="EPSG:4326")
+        host = gpd.clip(host, box(*_extent_lonlat(panel.crs, panel.extent))).to_crs(panel.crs)
+        _draw_polys(ax, host, "host-country", facecolor=COLORS["host_land"], edgecolor=COLORS["border"], linewidth=0.5, zorder=1.5)
     _draw_polys(ax, focus, "focus-country", facecolor=COLORS["focus_land"], edgecolor=COLORS["border"], linewidth=0.6, zorder=2)
     marker_pt = marker_size(ax) * marker_scale
     moved = draw_stations(ax, st, panel.extent, numbers, marker_pt=marker_pt)

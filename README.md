@@ -24,7 +24,10 @@ Stations of class 1, 2 and Associated count as part of the network (`NETWORK_CLA
 [config.py](src/icos_maps/config.py)), plus labelling-application entries that have no production
 station yet. Every station gets a status from the labelling application: "Labelled" (with the date of
 approval), "In labelling: step …", or "Not yet labelled", shown in the tables, popups and the website.
-The few stations without a labelling entry keep the labelling date of the production metadata. Downloads are cached in `cache/`; `--refresh` fetches them again.
+The few stations without a labelling entry keep the labelling date of the production metadata.
+Stations run by a member country other than the one they stand in are listed in `OPERATED_BY` in
+[config.py](src/icos_maps/config.py) (Welgegund → Finland, Yangambi and La Réunion → Belgium): they
+appear on that member's maps and tables, in a remote panel that shades the host country grey. Downloads are cached in `cache/`; `--refresh` fetches them again.
 
 ## Output (`out/`)
 

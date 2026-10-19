@@ -38,6 +38,13 @@ TERRITORIES = {
     "NO": ["NO", "SJ"],
 }
 
+# Stations run by a member country other than the one they stand in (station ID -> member).
+OPERATED_BY = {
+    "ZA-Wgn": "FI",  # Welgegund, South Africa
+    "CD-Ygb": "BE",  # Yangambi, DR Congo
+    "RUN": "BE",     # La Réunion, French territory
+}
+
 # GISCO uses EU codes for a few countries.
 ISO_TO_GISCO = {"GR": "EL", "GB": "UK"}
 
@@ -60,6 +67,7 @@ COLORS = {
     "multi": "#5B3C92",
     "soop": "#0B3B7A",
     "focus_land": "#C6E2EE",
+    "host_land": "#ECEFF2",  # country a station stands in when another member runs it
     "border": "#00A6C8",
     "other_land": "#FFFFFF",
     "locator_land": "#E3E3E3",

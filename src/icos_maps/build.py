@@ -12,7 +12,7 @@ from shapely.geometry import MultiPolygon, Polygon, box
 from shapely.geometry.polygon import orient
 
 from .basemap import countries as gisco_countries
-from .config import ISO_TO_GISCO, MEMBERS, ROOT, TERRITORIES, THEME_LABEL
+from .config import ISO_TO_GISCO, MEMBERS, OPERATED_BY, ROOT, TERRITORIES, THEME_LABEL
 from .data import fetch_stations
 from .layout import plan_country
 from .ocean import attach_ocean_geometry, fetch_ocean_geometry
@@ -39,6 +39,7 @@ def load_network(refresh: bool) -> gpd.GeoDataFrame:
     stations["theme_label"] = stations["theme"].map(THEME_LABEL)
     code_to_member = {code: cc for cc in MEMBERS for code in TERRITORIES.get(cc, [cc])}
     stations["member"] = stations["country"].map(code_to_member).fillna("")
+    stations["member"] = stations["id"].map(OPERATED_BY).fillna(stations["member"])
     return stations
 
 
@@ -99,6 +100,10 @@ def build(out: Path, countries: list[str], formats: list[str], refresh: bool, ov
         numbers = number_stations(st)
         mapped = st[st["has_geometry"]]
         panels = plan_country(cc, mapped)
+        # Panel letters can shift between builds: drop this country's old map files first.
+        for old in (out / "print" / cc).glob(f"{cc}_*.*") if (out / "print" / cc).exists() else []:
+            if old.suffix in (".png", ".svg", ".pdf"):
+                old.unlink()
         entry = {"name": MEMBERS[cc], "stations": int(len(st)),
                  "by_theme": {t: int((st["theme"] == t).sum()) for t in ("atmosphere", "ecosystem", "ocean")},
                  "not_yet_labelled": int((st["status"] != "Labelled").sum()),
@@ -137,7 +142,7 @@ def table_rows(st: gpd.GeoDataFrame, numbers: dict) -> list[dict]:
     df = pd.DataFrame(st.drop(columns="geometry"))
     df["map_number"] = df["id"].map(numbers)
     df = df.sort_values(["map_number", "name"], na_position="last")
-    cols = [*TABLE_COLUMNS, "theme", "link"]
+    cols = [*TABLE_COLUMNS, "theme", "link", "country"]
     return [{k: (None if pd.isna(v) else (int(v) if k == "map_number" else v)) for k, v in row.items()}
             for row in df[cols].to_dict("records")]
 
@@ -184,7 +189,8 @@ def write_site(out: Path, web: Path, stations, all_numbers, manifest, tables):
         if f.is_file():
             shutil.copy(f, web / f.name)
     if (out / "print").exists():
-        shutil.copytree(out / "print", web / "maps", dirs_exist_ok=True, ignore=shutil.ignore_patterns("*.csv"))
+        shutil.rmtree(web / "maps", ignore_errors=True)  # no stale panels from earlier builds
+        shutil.copytree(out / "print", web / "maps", ignore=shutil.ignore_patterns("*.csv"))
         for csv in (out / "print").glob("*/*_stations.csv"):
             shutil.copy(csv, web / "maps" / csv.parent.name / csv.name)
     pub = stations.copy()

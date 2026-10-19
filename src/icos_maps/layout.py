@@ -108,9 +108,11 @@ def plan_country(cc: str, stations: gpd.GeoDataFrame) -> list[Panel]:
     ocean_ids = set(stations.loc[is_line, "id"]) | set(far.loc[far["theme"] == "ocean", "id"]) | set(points.loc[offshore[offshore].index, "id"])
     remote = stations.loc[far[far["theme"] != "ocean"].index]
     if len(remote):
-        land = territory_geom(cc)
         for group in _clusters(remote.to_crs(crs).geometry, CLUSTER_KM):
             grp = remote.iloc[group]
+            # Stations can stand in another country than the member running them (config.OPERATED_BY):
+            # frame the land they stand on as well.
+            land = unary_union([territory_geom(cc), *(country_geom(c) for c in grp["country"].unique())])
             buf = gpd.GeoSeries(grp.geometry, crs="EPSG:4326").to_crs(crs).buffer(50_000).to_crs("EPSG:4326").union_all()
             land_parts = [p for p in gpd.GeoSeries([land], crs="EPSG:4326").explode() if p.intersects(buf)]
             pcrs = _crs_for(list(grp.geometry) + land_parts)

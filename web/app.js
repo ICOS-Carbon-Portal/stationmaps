@@ -151,7 +151,8 @@ function drawMap() {
       tooltip.innerHTML = c
         ? `<b>${esc(c.name)}</b><br>${c.stations} stations · ${Object.entries(c.by_theme || {}).filter(([, n]) => n).map(([t, n]) => `${n} ${t}`).join(", ")}`
         : `<b>${esc(f.properties.NAME_ENGL)}</b><br><span style="opacity:.7">Not an ICOS member</span>` +
-          hosted.map((s) => `<br>${esc(s.properties.name)} (${esc(s.properties.theme)}, ${esc(s.properties.status.toLowerCase())})`).join("");
+          hosted.map((s) => `<br>${esc(s.properties.name)} (${esc(s.properties.theme)}, ${esc(s.properties.status.toLowerCase())}` +
+            (state.manifest.countries[s.properties.member] ? `, run by ${esc(state.manifest.countries[s.properties.member].name)}` : "") + ")").join("");
       tooltip.style.left = `${x}px`;
       tooltip.style.top = `${y}px`;
       tooltip.hidden = false;
@@ -181,7 +182,8 @@ function renderOutside() {
     .sort((a, b) => a.properties.name.localeCompare(b.properties.name));
   $("#outside-list").innerHTML = far.map((f) => {
     const p = f.properties;
-    const where = state.manifest.countries[p.member]?.name ?? names[p.country] ?? p.country;
+    const site = names[p.country], operator = state.manifest.countries[p.member]?.name;
+    const where = operator && site && site !== operator ? `${site} · ${operator}` : operator ?? site ?? p.country;
     const label = `<span><i style="background:${COLORS[p.theme]}"></i>${esc(p.name)}</span><span class="n">${esc(where)}</span>`;
     return `<li>${p.member ? `<a href="#/${p.member}" data-cc="${p.member}">${label}</a>` : `<span class="row">${label}</span>`}</li>`;
   }).join("");
@@ -245,12 +247,23 @@ function stationRow(cc, id) {
   return (state.tables[cc] || []).find((r) => r.id === id);
 }
 
+function countryName(code) {
+  return state.world.features.find((f) => f.properties.CNTR_ID === code)?.properties.NAME_ENGL;
+}
+
+// Stations standing outside the member country that runs them (e.g. Yangambi in DR Congo, run by Belgium).
+function located(r) {
+  const where = r.country && r.country !== state.cc ? countryName(r.country) : null;
+  return where ? `<dt>Located in</dt><dd>${esc(where)}</dd>` : "";
+}
+
 function stationPopup(r) {
   const field = (label, value) => `<dt>${label}</dt><dd>${value ? esc(value) : '<span class="muted">–</span>'}</dd>`;
   return `<button class="popup-close" aria-label="Close">×</button>
     <h3>${esc(r.name)}</h3>
     <p class="popup-sub"><span class="code">${esc(r.id)}</span><span class="type"><i style="background:${COLORS[r.theme]}"></i>${THEME_NAMES[r.theme]}</span></p>
     <dl>
+      ${located(r)}
       ${field("Class", r.cls)}
       ${field("Labelled", r.labeled || r.status)}
       ${field("PI", r.pi)}
