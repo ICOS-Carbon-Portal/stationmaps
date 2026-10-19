@@ -12,7 +12,8 @@ const COLUMNS = [
   { key: "theme", label: "Station type" },
   { key: "site_type", label: "Site type" },
   { key: "cls", label: "Class" },
-  { key: "host", label: "Host institute" },
+  { key: "pi", label: "PI" },
+  { key: "host", label: "Responsible institute" },
   { key: "labeled", label: "Labelling date", cls: "date" },
   { key: "status", label: "Status" },
 ];
@@ -66,6 +67,14 @@ function setupChrome() {
     $("#overview-dl").innerHTML = "Network overview map:" +
       Object.entries(m.overview).map(([f, href]) => `<a href="${esc(href)}" download>${f.toUpperCase()}</a>`).join("");
   }
+
+  $("#figures").addEventListener("click", (e) => {
+    const spot = e.target.closest(".hotspot");
+    if (spot) { e.stopPropagation(); spot === state.popupFor ? closePopup() : openPopup(spot); }
+  });
+  document.addEventListener("click", (e) => { if (!e.target.closest(".station-popup")) closePopup(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { const b = state.popupFor; closePopup(); b?.focus(); } });
+  window.addEventListener("hashchange", closePopup);
 
   $("#station-filter").addEventListener("input", renderTable);
   $("#domain-filter").addEventListener("change", renderTable);
@@ -203,11 +212,16 @@ function showCountry(cc, tab) {
   figs.classList.toggle("single", c.panels.length === 1);
   figs.innerHTML = c.panels.map((p, i) => {
     const img = p.files.png || p.files.svg;
-    const open = p.files.svg || img;
+    const spots = (p.hotspots?.points || []).map((h) => {
+      const row = stationRow(cc, h.id);
+      return `<button class="hotspot" data-id="${esc(h.id)}" style="left:${h.x * 100}%;top:${h.y * 100}%;width:${p.hotspots.r * 200}%"
+        aria-label="${esc(row?.name ?? h.id)}: station details"></button>`;
+    }).join("");
     return `<figure class="figure${i === 0 && c.panels.length > 1 ? " lead" : ""}">
-      <a class="img" href="${esc(open)}" target="_blank" rel="noopener" title="Open full-size map">
+      <div class="map-frame">
         <img src="${esc(img)}" alt="${esc(`${c.name}: ${p.title}. Map of ${p.stations.length} stations.`)}" loading="lazy">
-      </a>
+        ${spots}
+      </div>
       <figcaption>
         <span class="title"><b>Figure ${esc(p.key)}</b>${esc(p.kind === "home" ? PANEL_KIND.home : p.title)}</span>
         <span class="dl">${Object.entries(p.files).map(([f, href]) => `<a href="${esc(href)}" download>${f.toUpperCase()}</a>`).join("")}</span>
@@ -222,6 +236,52 @@ function showCountry(cc, tab) {
   $("#unmapped-note").textContent = unmapped.length
     ? `Not on the maps (no position or route data yet): ${unmapped.join(", ")}.` : "";
   renderTable();
+}
+
+function stationRow(cc, id) {
+  return (state.tables[cc] || []).find((r) => r.id === id);
+}
+
+function stationPopup(r) {
+  const field = (label, value) => `<dt>${label}</dt><dd>${value ? esc(value) : '<span class="muted">–</span>'}</dd>`;
+  return `<button class="popup-close" aria-label="Close">×</button>
+    <h3>${esc(r.name)}</h3>
+    <p class="popup-sub"><span class="code">${esc(r.id)}</span><span class="type"><i style="background:${COLORS[r.theme]}"></i>${THEME_NAMES[r.theme]}</span></p>
+    <dl>
+      ${field("Class", r.cls)}
+      ${field("Labelled", r.labeled || "Not yet labelled")}
+      ${field("PI", r.pi)}
+      ${field("Responsible institute", r.host)}
+    </dl>
+    ${r.link ? `<a class="popup-link" href="${esc(r.link)}" target="_blank" rel="noopener">Station page ↗</a>`
+             : '<p class="muted popup-note">No station page yet: the station is in the labelling process.</p>'}`;
+}
+
+function openPopup(button) {
+  closePopup();
+  const r = stationRow(state.cc, button.dataset.id);
+  if (!r) return;
+  const frame = button.closest(".map-frame");
+  const pop = document.createElement("div");
+  pop.className = "station-popup";
+  pop.setAttribute("role", "dialog");
+  pop.setAttribute("aria-label", `${r.name} details`);
+  pop.innerHTML = stationPopup(r);
+  frame.appendChild(pop);
+  // Open beside the marker, flipped when it would run off the map.
+  const x = parseFloat(button.style.left), y = parseFloat(button.style.top);
+  pop.style.left = x > 55 ? "" : `calc(${x}% + 14px)`;
+  pop.style.right = x > 55 ? `calc(${100 - x}% + 14px)` : "";
+  pop.style.top = `clamp(8px, calc(${y}% - 40px), calc(100% - ${pop.offsetHeight + 8}px))`;
+  button.classList.add("active");
+  pop.querySelector(".popup-close").addEventListener("click", closePopup);
+  state.popupFor = button;
+}
+
+function closePopup() {
+  document.querySelector(".station-popup")?.remove();
+  state.popupFor?.classList.remove("active");
+  state.popupFor = null;
 }
 
 function renderTable() {

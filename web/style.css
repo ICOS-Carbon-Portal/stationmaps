@@ -148,8 +148,34 @@ main { flex: 1; width: 100%; max-width: 1360px; margin: 0 auto; padding: 20px 16
 .figures.single { grid-template-columns: minmax(0, 860px); }
 .figure { margin: 0; overflow: hidden; }
 .figure.lead { grid-column: 1 / -1; max-width: 860px; }
-.figure a.img { display: block; background: #fff; }
+.map-frame { position: relative; background: #fff; }
 .figure img { display: block; width: 100%; height: auto; }
+.hotspot {
+  position: absolute; aspect-ratio: 1; min-width: 14px; transform: translate(-50%, -50%);
+  border: 0; padding: 0; border-radius: 50%; background: transparent; cursor: pointer;
+}
+.hotspot:hover, .hotspot:focus-visible, .hotspot.active {
+  outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink);
+}
+.station-popup {
+  position: absolute; z-index: 3; width: min(300px, 80%); padding: 14px 16px 12px;
+  background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(16, 24, 40, .18); font-size: 13px;
+}
+.station-popup h3 { margin: 0 24px 2px 0; font-size: 16px; line-height: 1.25; }
+.popup-sub { margin: 0 0 10px; display: flex; gap: 12px; align-items: center; color: var(--muted); }
+.popup-sub .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.station-popup dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0 0 10px; }
+.station-popup dt { color: var(--muted); }
+.station-popup dd { margin: 0; }
+.popup-close {
+  position: absolute; top: 6px; right: 8px; border: 0; background: none; font-size: 20px; line-height: 1;
+  color: var(--muted); cursor: pointer; padding: 4px;
+}
+.popup-close:hover { color: var(--ink); }
+.popup-link { font-weight: 600; text-decoration: none; }
+.popup-link:hover { text-decoration: underline; }
+.popup-note { margin: 0; font-size: 12px; }
 .figure figcaption { padding: 12px 14px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; }
 .figure .title { font-size: 14px; }
 .figure .title b { color: var(--brand-ink); margin-right: 4px; }

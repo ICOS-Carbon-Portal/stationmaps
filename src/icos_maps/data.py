@@ -35,6 +35,8 @@ ENTRIES_QUERY = """
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX cpst: <http://meta.icos-cp.eu/ontologies/stationentry/>
 SELECT ?uri ?id ?name ?theme_label ?cls ?country ?lat ?lon ?site_type ?prod
+       (group_concat(distinct ?pi_name; separator="; ") as ?pi)
+       (group_concat(distinct ?aff; separator="; ") as ?affiliation)
 FROM <http://meta.icos-cp.eu/resources/stationentry/>
 FROM <http://meta.icos-cp.eu/ontologies/stationentry/>
 WHERE {
@@ -43,8 +45,26 @@ WHERE {
   optional { ?uri cpst:hasLat ?lat ; cpst:hasLon ?lon }
   optional { ?uri cpst:hasSiteType ?site_type }
   optional { ?uri cpst:hasProductionCounterpart ?prod }
+  optional {
+    ?uri cpst:hasPi ?pi_r . ?pi_r cpst:hasFirstName ?pf ; cpst:hasLastName ?pl .
+    optional { ?pi_r cpst:hasAffiliation ?aff }
+    bind(concat(?pf, " ", ?pl) as ?pi_name)
+  }
   bind(if(contains(?cls0, "Ass"), "Associated", ?cls0) as ?cls)
 }
+group by ?uri ?id ?name ?theme_label ?cls ?country ?lat ?lon ?site_type ?prod
+"""
+
+# Current PIs of production stations (memberships with the PI role that have not ended).
+PI_QUERY = """
+prefix cpmeta: <http://meta.icos-cp.eu/ontologies/cpmeta/>
+select ?uri (group_concat(distinct ?pi_name; separator="; ") as ?pi) where {
+  ?uri cpmeta:hasStationClass [] .
+  ?memb cpmeta:atOrganization ?uri ; cpmeta:hasRole <http://meta.icos-cp.eu/resources/roles/PI> .
+  ?person cpmeta:hasMembership ?memb ; cpmeta:hasFirstName ?fn ; cpmeta:hasLastName ?ln .
+  filter not exists { ?memb cpmeta:hasEndTime ?end . filter(?end < now()) }
+  bind(concat(?fn, " ", ?ln) as ?pi_name)
+} group by ?uri
 """
 ENTRY_THEMES = {"Atmospheric Station": "atmosphere", "Ecosystem Station": "ecosystem", "Ocean Station": "ocean"}
 
@@ -63,13 +83,16 @@ def _cached_query(name: str, query: str, refresh: bool) -> pd.DataFrame:
     return pd.read_csv(cache, dtype=str, keep_default_na=False)
 
 
-def labelling_candidates(refresh: bool = False) -> pd.DataFrame:
+def labelling_entries(refresh: bool = False) -> pd.DataFrame:
+    return _cached_query("labelling_entries.csv", ENTRIES_QUERY, refresh).drop_duplicates("uri")
+
+
+def labelling_candidates(entries: pd.DataFrame) -> pd.DataFrame:
     """Labelling-application entries without a production station: stations not yet labelled."""
-    df = _cached_query("labelling_entries.csv", ENTRIES_QUERY, refresh).drop_duplicates("uri")
-    df = df[df["prod"] == ""].drop(columns="prod")
+    df = entries[entries["prod"] == ""].drop(columns="prod").copy()
     df["theme"] = df.pop("theme_label").map(ENTRY_THEMES)
+    df["host"] = df.pop("affiliation")
     df["labeled"] = ""
-    df["host"] = ""
     df["elevation"] = ""
     df["source"] = "labelling"
     # Their entry URIs are not public pages; the table shows their names without a link.
@@ -84,7 +107,13 @@ def fetch_stations(refresh: bool = False) -> gpd.GeoDataFrame:
     df = df[df["cls"].isin(NETWORK_CLASSES)].copy()
     df["source"] = "production"
     df["link"] = df["uri"]
-    df = pd.concat([df, labelling_candidates(refresh)], ignore_index=True)
+    pis = _cached_query("station_pis.csv", PI_QUERY, refresh).set_index("uri")["pi"]
+    df["pi"] = df["uri"].map(pis).fillna("")
+    entries = labelling_entries(refresh)
+    # Where the station has no responsible organisation, use its labelling PI's affiliation.
+    affiliation = entries[entries["prod"] != ""].set_index("prod")["affiliation"]
+    df["host"] = df["host"].where(df["host"] != "", df["uri"].map(affiliation).fillna(""))
+    df = pd.concat([df, labelling_candidates(entries)], ignore_index=True)
     for col in ("lat", "lon", "elevation"):
         df[col] = pd.to_numeric(df[col], errors="coerce")
     df["labeled"] = df["labeled"].str.slice(0, 10)

@@ -320,7 +320,8 @@ def render_panel(panel: Panel, cc: str, stations: gpd.GeoDataFrame, numbers: dic
     world = _basemap(panel.crs, panel.extent, res if panel.kind != "ocean" else "10")
     _draw_polys(ax, world.geometry, "other-countries", facecolor=COLORS["other_land"], edgecolor=COLORS["border"], linewidth=0.4, zorder=1)
     _draw_polys(ax, focus, "focus-country", facecolor=COLORS["focus_land"], edgecolor=COLORS["border"], linewidth=0.6, zorder=2)
-    draw_stations(ax, st, panel.extent, numbers)
+    moved = draw_stations(ax, st, panel.extent, numbers)
+    hotspots = marker_positions(fig, ax, st["id"], moved)
     _scalebar(fig, ax, panel.extent)
     _legend(fig, [t for t in ("ocean", "atmosphere", "ecosystem") if (st["theme"] == t).any()],
             st.geometry.geom_type.str.contains("Line").any())
@@ -328,6 +329,16 @@ def render_panel(panel: Panel, cc: str, stations: gpd.GeoDataFrame, numbers: dic
         _locator(fig, ax, panel, cc, frame, corner_box)
     fig.text(0.98, _fy(fig, 1), GISCO_CREDIT, ha="right", va="bottom", fontsize=3.5, color="#777777", gid="credit")
     save(fig, out_base, formats)
+    return hotspots
+
+
+def marker_positions(fig, ax, ids, xy):
+    """Marker centres as fractions of the image (origin top-left) and the marker radius as a fraction
+    of the image width, so the website can put clickable spots on top of the PNG."""
+    w, h = fig.get_size_inches() * fig.dpi
+    disp = ax.transData.transform(xy) if len(xy) else np.empty((0, 2))
+    return {"r": round(MARKER_PT / 2 / 72 / fig.get_size_inches()[0], 5),
+            "points": [{"id": i, "x": round(float(x / w), 5), "y": round(float(1 - y / h), 5)} for i, (x, y) in zip(ids, disp)]}
 
 
 def save(fig, out_base: FilePath, formats):

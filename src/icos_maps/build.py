@@ -26,11 +26,12 @@ TABLE_COLUMNS = {
     "theme_label": "Station type",
     "site_type": "Site type",
     "cls": "Station class",
-    "host": "Host institute",
+    "pi": "PI",
+    "host": "Responsible institute",
     "labeled": "Labelling date",
     "status": "Status",
 }
-COMPARE_FIELDS = ["name", "theme", "cls", "labeled", "status", "lat", "lon", "host"]
+COMPARE_FIELDS = ["name", "theme", "cls", "labeled", "status", "lat", "lon", "host", "pi"]
 
 
 def load_network(refresh: bool) -> gpd.GeoDataFrame:
@@ -104,9 +105,10 @@ def build(out: Path, countries: list[str], formats: list[str], refresh: bool, ov
                  "unmapped": st.loc[~st["has_geometry"], "id"].tolist(), "panels": []}
         for p in panels:
             base = out / "print" / cc / f"{cc}_{p.key}_{p.kind}"
-            render_panel(p, cc, mapped, numbers, base, formats)
+            hotspots = render_panel(p, cc, mapped, numbers, base, formats)
             entry["panels"].append({"key": p.key, "kind": p.kind, "title": panel_title(p, MEMBERS[cc], st),
-                                    "stations": p.station_ids, "files": {f: f"maps/{cc}/{base.name}.{f}" for f in formats}})
+                                    "stations": p.station_ids, "files": {f: f"maps/{cc}/{base.name}.{f}" for f in formats},
+                                    "hotspots": hotspots})
             print(f"  {cc} panel {p.key} ({p.kind}): {len(p.station_ids)} stations")
         write_table(st, numbers, out / "print" / cc / f"{cc}_stations.csv")
         tables[cc] = table_rows(st, numbers)
