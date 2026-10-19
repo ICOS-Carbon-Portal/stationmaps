@@ -28,8 +28,9 @@ TABLE_COLUMNS = {
     "cls": "Station class",
     "host": "Host institute",
     "labeled": "Labelling date",
+    "status": "Status",
 }
-COMPARE_FIELDS = ["name", "theme", "cls", "labeled", "lat", "lon", "host"]
+COMPARE_FIELDS = ["name", "theme", "cls", "labeled", "status", "lat", "lon", "host"]
 
 
 def load_network(refresh: bool) -> gpd.GeoDataFrame:
@@ -64,8 +65,9 @@ def diff_report(old_path: Path, new: gpd.GeoDataFrame) -> list[str]:
         lines.append(f"+ added   {cur.at[uri, 'id']} ({cur.at[uri, 'name']}, {cur.at[uri, 'country']}, {cur.at[uri, 'theme']})")
     for uri in old.index.difference(cur.index):
         lines.append(f"- removed {old.at[uri, 'id']} ({old.at[uri, 'name']}, {old.at[uri, 'country']})")
+    fields = [f for f in COMPARE_FIELDS if f in old.columns and f in cur.columns]  # older lists lack newer fields
     for uri in cur.index.intersection(old.index):
-        for f in COMPARE_FIELDS:
+        for f in fields:
             a, b = old.at[uri, f], cur.at[uri, f]
             if f in ("lat", "lon") and a and b and abs(float(a) - float(b)) < 1e-4:
                 continue
@@ -98,6 +100,7 @@ def build(out: Path, countries: list[str], formats: list[str], refresh: bool, ov
         panels = plan_country(cc, mapped)
         entry = {"name": MEMBERS[cc], "stations": int(len(st)),
                  "by_theme": {t: int((st["theme"] == t).sum()) for t in ("atmosphere", "ecosystem", "ocean")},
+                 "not_yet_labelled": int((st["status"] != "Labelled").sum()),
                  "unmapped": st.loc[~st["has_geometry"], "id"].tolist(), "panels": []}
         for p in panels:
             base = out / "print" / cc / f"{cc}_{p.key}_{p.kind}"
@@ -132,7 +135,7 @@ def table_rows(st: gpd.GeoDataFrame, numbers: dict) -> list[dict]:
     df = pd.DataFrame(st.drop(columns="geometry"))
     df["map_number"] = df["id"].map(numbers)
     df = df.sort_values(["map_number", "name"], na_position="last")
-    cols = [*TABLE_COLUMNS, "theme", "uri"]
+    cols = [*TABLE_COLUMNS, "theme", "link"]
     return [{k: (None if pd.isna(v) else (int(v) if k == "map_number" else v)) for k, v in row.items()}
             for row in df[cols].to_dict("records")]
 

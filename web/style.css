@@ -181,6 +181,9 @@ td .badge.ecosystem { color: #1B2430; }  /* white on lime is too low-contrast */
 td.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; white-space: nowrap; }
 td.date { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .type { white-space: nowrap; }
+.status { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.status.ok { background: color-mix(in srgb, var(--ecosystem) 22%, transparent); }
+.status.pending { background: color-mix(in srgb, var(--muted) 16%, transparent); color: var(--muted); }
 .muted { color: var(--muted); }
 .note { color: var(--muted); font-size: 13px; }
 .load-error { padding: 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }

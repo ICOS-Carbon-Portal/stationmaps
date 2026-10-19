@@ -14,6 +14,7 @@ const COLUMNS = [
   { key: "cls", label: "Class" },
   { key: "host", label: "Host institute" },
   { key: "labeled", label: "Labelling date", cls: "date" },
+  { key: "status", label: "Status" },
 ];
 
 const $ = (sel) => document.querySelector(sel);
@@ -66,6 +67,7 @@ function setupChrome() {
 
   $("#station-filter").addEventListener("input", renderTable);
   $("#domain-filter").addEventListener("change", renderTable);
+  $("#status-filter").addEventListener("change", renderTable);
   $("#station-table thead").addEventListener("click", (e) => {
     const key = e.target.closest("th")?.dataset.key;
     if (!key) return;
@@ -148,7 +150,8 @@ function showCountry(cc, tab) {
   $("#country-name").textContent = c.name;
   $("#country-chips").innerHTML = `<span class="chip">${c.stations} stations</span>` +
     Object.entries(c.by_theme || {}).filter(([, n]) => n).map(([t, n]) =>
-      `<span class="chip"><i style="background:${COLORS[t]}"></i>${n} ${THEME_NAMES[t]}</span>`).join("");
+      `<span class="chip"><i style="background:${COLORS[t]}"></i>${n} ${THEME_NAMES[t]}</span>`).join("") +
+    (c.not_yet_labelled ? `<span class="chip">${c.not_yet_labelled} not yet labelled</span>` : "");
 
   for (const t of ["maps", "stations"]) {
     const el = $(`#tab-${t}`);
@@ -186,7 +189,8 @@ function renderTable() {
   const rows = (state.tables[state.cc] || []).slice();
   const q = $("#station-filter").value.trim().toLowerCase();
   const domain = $("#domain-filter").value;
-  const shown = rows.filter((r) => (!domain || r.theme === domain) &&
+  const status = $("#status-filter").value;
+  const shown = rows.filter((r) => (!domain || r.theme === domain) && (!status || r.status === status) &&
     (!q || COLUMNS.some((col) => String(r[col.key] ?? "").toLowerCase().includes(q))));
 
   const { key, dir } = state.sort;
@@ -204,7 +208,8 @@ function renderTable() {
     if (col.key === "map_number") {
       return `<td class="num">${v == null ? '<span class="muted">–</span>' : `<span class="badge ${r.theme}" style="background:${COLORS[r.theme]}">${v}</span>`}</td>`;
     }
-    if (col.key === "name") return `<td><a href="${esc(r.uri)}" target="_blank" rel="noopener">${esc(v)}</a></td>`;
+    if (col.key === "name") return r.link ? `<td><a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(v)}</a></td>` : `<td>${esc(v)}</td>`;
+    if (col.key === "status") return `<td><span class="status ${v === "Labelled" ? "ok" : "pending"}">${esc(v)}</span></td>`;
     if (col.key === "theme") return `<td class="type"><i style="background:${COLORS[v]}"></i>${THEME_NAMES[v]}</td>`;
     return `<td class="${col.cls || ""}">${v ? esc(v) : '<span class="muted">–</span>'}</td>`;
   }).join("") + "</tr>").join("");
