@@ -5,6 +5,7 @@ description = "Generate ICOS station network maps (print SVG/PDF + web GeoJSON) 
 authors = [
     { name = "Alex Vermeulen", email = "alex.vermeulen@icos-ri.eu" }
 ]
+license = "GPL-3.0-only"
 requires-python = ">=3.12"
 dependencies = [
     "aiohttp>=3.14.5",

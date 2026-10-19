@@ -64,3 +64,8 @@ wherever the website reads from, such as a static bucket or GitHub Pages.
   empty for them.
 - Ocean stations without data in the Zarr store (currently UK-Caribbean, Polarstern, Atlantic Sail,
   Belgica, Celtic Explorer) appear in the tables without a map number; see `unmapped` in the manifest.
+
+## License
+
+GPL-3.0, see [LICENSE](LICENSE). The bundled Open Sans fonts are under the SIL Open Font License
+([assets/fonts/OFL.txt](assets/fonts/OFL.txt)).
