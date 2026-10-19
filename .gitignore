@@ -3,3 +3,4 @@ __pycache__/
 cache/
 out/
 maps.code-workspace
+.env
