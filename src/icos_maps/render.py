@@ -32,8 +32,9 @@ FOOTER_MM = 20  # strip below the map for scale bar, north arrow and legend
 MARGIN_MM = 3
 LOCATOR_FRAC = 0.3  # locator inset width as a fraction of the map width
 LOCATOR_MAX_KM = 3000  # panels wider than this get no locator inset
-MARKER_PT = 9.0
-NUMBER_PT = 5.0
+MARKER_PT = 9.0  # reference marker diameter; country maps scale it with the map size (MARKER_FRAC)
+NUMBER_PT = 5.0  # station number size at the reference marker diameter
+MARKER_FRAC = 0.0105  # marker diameter as a fraction of map width + height (about 9 pt on the France map)
 EUROPE_LOCATOR = (-12, 34, 34, 71)  # lon/lat box for the locator inset of home panels
 
 
@@ -122,6 +123,14 @@ def new_map_figure(extent, width_mm=PAGE_W_MM, max_h_mm=MAX_MAP_H_MM, header_mm=
 def _fy(fig, mm):
     """Vertical figure fraction for a distance in mm from the bottom."""
     return mm / (fig.get_size_inches()[1] / MM)
+
+
+def marker_size(ax) -> float:
+    """Marker diameter in points, proportional to the map's width + height, so stations look the same
+    relative to the map on small and large panels."""
+    pos = ax.get_position()
+    fw, fh = ax.figure.get_size_inches()
+    return MARKER_FRAC * (pos.width * fw + pos.height * fh) * 72
 
 
 def _metres_per_point(ax, extent):
@@ -301,7 +310,7 @@ def draw_stations(ax, stations: gpd.GeoDataFrame, extent, numbers: dict | None, 
         sc.set_gid(f"stations-{key}")
     if numbers:
         for (mx, my), sid in zip(moved, stations["id"]):
-            t = ax.text(mx, my, str(numbers[sid]), ha="center", va="center", fontsize=NUMBER_PT, fontweight="bold", color="white", zorder=6)
+            t = ax.text(mx, my, str(numbers[sid]), ha="center", va="center", fontsize=NUMBER_PT * marker_pt / MARKER_PT, fontweight="bold", color="white", zorder=6)
             t.set_gid(f"number-{sid}")
     return moved
 
@@ -320,8 +329,9 @@ def render_panel(panel: Panel, cc: str, stations: gpd.GeoDataFrame, numbers: dic
     world = _basemap(panel.crs, panel.extent, res if panel.kind != "ocean" else "10")
     _draw_polys(ax, world.geometry, "other-countries", facecolor=COLORS["other_land"], edgecolor=COLORS["border"], linewidth=0.4, zorder=1)
     _draw_polys(ax, focus, "focus-country", facecolor=COLORS["focus_land"], edgecolor=COLORS["border"], linewidth=0.6, zorder=2)
-    moved = draw_stations(ax, st, panel.extent, numbers)
-    hotspots = marker_positions(fig, ax, st["id"], moved)
+    marker_pt = marker_size(ax)
+    moved = draw_stations(ax, st, panel.extent, numbers, marker_pt=marker_pt)
+    hotspots = marker_positions(fig, ax, st["id"], moved, marker_pt)
     _scalebar(fig, ax, panel.extent)
     _legend(fig, [t for t in ("ocean", "atmosphere", "ecosystem") if (st["theme"] == t).any()],
             st.geometry.geom_type.str.contains("Line").any())
@@ -332,12 +342,12 @@ def render_panel(panel: Panel, cc: str, stations: gpd.GeoDataFrame, numbers: dic
     return hotspots
 
 
-def marker_positions(fig, ax, ids, xy):
+def marker_positions(fig, ax, ids, xy, marker_pt):
     """Marker centres as fractions of the image (origin top-left) and the marker radius as a fraction
     of the image width, so the website can put clickable spots on top of the PNG."""
     w, h = fig.get_size_inches() * fig.dpi
     disp = ax.transData.transform(xy) if len(xy) else np.empty((0, 2))
-    return {"r": round(MARKER_PT / 2 / 72 / fig.get_size_inches()[0], 5),
+    return {"r": round(marker_pt / 2 / 72 / fig.get_size_inches()[0], 5),
             "points": [{"id": i, "x": round(float(x / w), 5), "y": round(float(1 - y / h), 5)} for i, (x, y) in zip(ids, disp)]}
 
 
