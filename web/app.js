@@ -252,7 +252,7 @@ function stationPopup(r) {
     <p class="popup-sub"><span class="code">${esc(r.id)}</span><span class="type"><i style="background:${COLORS[r.theme]}"></i>${THEME_NAMES[r.theme]}</span></p>
     <dl>
       ${field("Class", r.cls)}
-      ${field("Labelled", r.labeled || "Not yet labelled")}
+      ${field("Labelled", r.labeled || r.status)}
       ${field("PI", r.pi)}
       ${field("Responsible institute", r.host)}
     </dl>
@@ -292,7 +292,7 @@ function renderTable() {
   const q = $("#station-filter").value.trim().toLowerCase();
   const domain = $("#domain-filter").value;
   const status = $("#status-filter").value;
-  const shown = rows.filter((r) => (!domain || r.theme === domain) && (!status || r.status === status) &&
+  const shown = rows.filter((r) => (!domain || r.theme === domain) && (!status || (status === "labelled") === (r.status === "Labelled")) &&
     (!q || COLUMNS.some((col) => String(r[col.key] ?? "").toLowerCase().includes(q))));
 
   const { key, dir } = state.sort;

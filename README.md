@@ -15,14 +15,16 @@ uv run icos-maps --formats svg   # svg / pdf / png (default: all three)
 | What | Source |
 |---|---|
 | Stations: position, domain, class, labelling date, host, ecosystem type | Carbon Portal SPARQL, `https://meta.icos-cp.eu/sparql` |
-| Stations not yet labelled (no production station yet) | Labelling application entries (graph `stationentry`), same endpoint |
+| Stations not yet labelled (no production station yet), PIs of candidates | Labelling application entries (graph `stationentry`), same endpoint |
+| Labelling status and date | Labelling application (graph `stationlabeling`): `STEP3APPROVED` = labelled, its status date = labelling date |
 | Ocean SOOP routes and fixed ocean station positions | ICOS ocean Zarr store, `https://zarr.icos-cp.eu/icos-socat.zarr` (cruises from the last `TRACK_YEARS` years) |
 | Country boundaries | Eurostat GISCO, 1:3M for country maps (© EuroGeographics) |
 
 Stations of class 1, 2 and Associated count as part of the network (`NETWORK_CLASSES` in
 [config.py](src/icos_maps/config.py)), plus labelling-application entries that have no production
-station yet. Every station gets a status, "Labelled" (it has a labelling date) or "Not yet labelled",
-shown in the tables and the website. Downloads are cached in `cache/`; `--refresh` fetches them again.
+station yet. Every station gets a status from the labelling application: "Labelled" (with the date of
+approval), "In labelling: step …", or "Not yet labelled", shown in the tables, popups and the website.
+The few stations without a labelling entry keep the labelling date of the production metadata. Downloads are cached in `cache/`; `--refresh` fetches them again.
 
 ## Output (`out/`)
 

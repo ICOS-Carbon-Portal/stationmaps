@@ -34,11 +34,12 @@ group by ?uri ?id ?name ?country ?theme ?cls ?lat ?lon ?elevation ?labeled
 ENTRIES_QUERY = """
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX cpst: <http://meta.icos-cp.eu/ontologies/stationentry/>
-SELECT ?uri ?id ?name ?theme_label ?cls ?country ?lat ?lon ?site_type ?prod
+SELECT ?uri ?id ?name ?theme_label ?cls ?country ?lat ?lon ?site_type ?prod ?app_status ?app_status_date
        (group_concat(distinct ?pi_name; separator="; ") as ?pi)
        (group_concat(distinct ?aff; separator="; ") as ?affiliation)
 FROM <http://meta.icos-cp.eu/resources/stationentry/>
 FROM <http://meta.icos-cp.eu/ontologies/stationentry/>
+FROM NAMED <http://meta.icos-cp.eu/resources/stationlabeling/>
 WHERE {
   ?uri cpst:hasCountry ?country ; cpst:hasLongName ?name ; cpst:hasStationClass ?cls0 ;
        cpst:hasShortName ?id ; a/rdfs:label ?theme_label .
@@ -50,10 +51,21 @@ WHERE {
     optional { ?pi_r cpst:hasAffiliation ?aff }
     bind(concat(?pf, " ", ?pl) as ?pi_name)
   }
+  optional { GRAPH <http://meta.icos-cp.eu/resources/stationlabeling/> {
+    ?uri cpst:hasApplicationStatus ?app_status . optional { ?uri cpst:hasAppStatusDate ?app_status_date } } }
   bind(if(contains(?cls0, "Ass"), "Associated", ?cls0) as ?cls)
 }
-group by ?uri ?id ?name ?theme_label ?cls ?country ?lat ?lon ?site_type ?prod
+group by ?uri ?id ?name ?theme_label ?cls ?country ?lat ?lon ?site_type ?prod ?app_status ?app_status_date
 """
+# Application status in the labelling application -> status shown on the maps and tables.
+# STEP3APPROVED means labelled (by the General Assembly); its status date is the labelling date.
+APP_STATUS = {
+    "STEP3APPROVED": "Labelled",
+    "APPROVED": "In labelling: step 1 approved",
+    "STEP2ONTRACK": "In labelling: step 2 on track",
+    "STEP2DELAYED": "In labelling: step 2 delayed",
+    "STEP2APPROVED": "In labelling: step 2 approved",
+}
 
 # Current PIs of production stations (memberships with the PI role that have not ended).
 PI_QUERY = """
@@ -84,15 +96,16 @@ def _cached_query(name: str, query: str, refresh: bool) -> pd.DataFrame:
 
 
 def labelling_entries(refresh: bool = False) -> pd.DataFrame:
-    return _cached_query("labelling_entries.csv", ENTRIES_QUERY, refresh).drop_duplicates("uri")
+    df = _cached_query("labelling_entries.csv", ENTRIES_QUERY, refresh).drop_duplicates("uri")
+    df["labeled"] = df["app_status_date"].str.slice(0, 10).where(df["app_status"] == "STEP3APPROVED", "")
+    return df
 
 
 def labelling_candidates(entries: pd.DataFrame) -> pd.DataFrame:
     """Labelling-application entries without a production station: stations not yet labelled."""
-    df = entries[entries["prod"] == ""].drop(columns="prod").copy()
+    df = entries[entries["prod"] == ""].drop(columns=["prod", "app_status_date"]).copy()
     df["theme"] = df.pop("theme_label").map(ENTRY_THEMES)
     df["host"] = df.pop("affiliation")
-    df["labeled"] = ""
     df["elevation"] = ""
     df["source"] = "labelling"
     # Their entry URIs are not public pages; the table shows their names without a link.
@@ -110,14 +123,21 @@ def fetch_stations(refresh: bool = False) -> gpd.GeoDataFrame:
     pis = _cached_query("station_pis.csv", PI_QUERY, refresh).set_index("uri")["pi"]
     df["pi"] = df["uri"].map(pis).fillna("")
     entries = labelling_entries(refresh)
+    linked = entries[entries["prod"] != ""].set_index("prod")
     # Where the station has no responsible organisation, use its labelling PI's affiliation.
-    affiliation = entries[entries["prod"] != ""].set_index("prod")["affiliation"]
-    df["host"] = df["host"].where(df["host"] != "", df["uri"].map(affiliation).fillna(""))
+    df["host"] = df["host"].where(df["host"] != "", df["uri"].map(linked["affiliation"]).fillna(""))
+    # Labelling status and date come from the labelling application; the production metadata's
+    # labelling dates are incomplete. Stations without a labelling entry keep the production date.
+    has_entry = df["uri"].isin(linked.index)
+    df["app_status"] = df["uri"].map(linked["app_status"]).fillna("")
+    df["labeled"] = df["labeled"].where(~has_entry, df["uri"].map(linked["labeled"]))
     df = pd.concat([df, labelling_candidates(entries)], ignore_index=True)
     for col in ("lat", "lon", "elevation"):
         df[col] = pd.to_numeric(df[col], errors="coerce")
     df["labeled"] = df["labeled"].str.slice(0, 10)
-    df["status"] = df["labeled"].map(lambda d: "Labelled" if d else "Not yet labelled")
+    df["status"] = [("Labelled" if lab else APP_STATUS.get(app, "Not yet labelled") if app != "STEP3APPROVED" else "Labelled")
+                    for lab, app in zip(df["labeled"], df["app_status"])]
+    df["labelled"] = df["status"] == "Labelled"
     # Ocean IDs look like "NO-SOOP-Nuka Arctica" (candidates sometimes only in the long name).
     df["platform"] = (df["id"] + " " + df["name"]).str.extract(r"\b(FOS|SOOP)\b")[0].fillna("")
     df = df.sort_values(["country", "name", "theme"]).reset_index(drop=True)
