@@ -41,6 +41,12 @@ async function load() {
   route();
 }
 
+// Map files keep their names between builds (FR_b_remote.png can show another territory after a
+// rebuild), and nginx lets browsers cache them; the build time in the URL makes each build's files new.
+function versioned(href) {
+  return `${href}?v=${encodeURIComponent(state.manifest.generated)}`;
+}
+
 function members() {
   return Object.entries(state.manifest.countries).sort((a, b) => a[1].name.localeCompare(b[1].name));
 }
@@ -68,7 +74,7 @@ function setupChrome() {
 
   if (m.overview) {
     $("#overview-dl").innerHTML = "Network overview map:" +
-      Object.entries(m.overview).map(([f, href]) => `<a href="${esc(href)}" download>${f.toUpperCase()}</a>`).join("");
+      Object.entries(m.overview).map(([f, href]) => `<a href="${esc(versioned(href))}" download>${f.toUpperCase()}</a>`).join("");
   }
 
   $("#figures").addEventListener("click", (e) => {
@@ -215,7 +221,7 @@ function showCountry(cc, tab) {
 
   const figs = $("#figures");
   figs.innerHTML = c.panels.map((p) => {
-    const img = p.files.png || p.files.svg;
+    const img = versioned(p.files.png || p.files.svg);
     const spots = (p.hotspots?.points || []).map((h) => {
       const row = stationRow(cc, h.id);
       return `<button class="hotspot" data-id="${esc(h.id)}" style="left:${h.x * 100}%;top:${h.y * 100}%;width:${p.hotspots.r * 200}%"
@@ -229,13 +235,13 @@ function showCountry(cc, tab) {
       </div>
       <figcaption>
         <span class="title"><b>Figure ${esc(p.key)}</b>${esc(p.kind === "home" ? PANEL_KIND.home : p.title)}</span>
-        <span class="dl">${Object.entries(p.files).map(([f, href]) => `<a href="${esc(href)}" download>${f.toUpperCase()}</a>`).join("")}</span>
+        <span class="dl">${Object.entries(p.files).map(([f, href]) => `<a href="${esc(versioned(href))}" download>${f.toUpperCase()}</a>`).join("")}</span>
       </figcaption>
     </figure>`;
   }).join("");
 
   state.cc = cc;
-  $("#csv-link").href = `maps/${cc}/${cc}_stations.csv`;
+  $("#csv-link").href = versioned(`maps/${cc}/${cc}_stations.csv`);
   const unmapped = c.unmapped || [];
   $("#unmapped-note").hidden = !unmapped.length;
   $("#unmapped-note").textContent = unmapped.length
