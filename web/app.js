@@ -103,9 +103,16 @@ function setupChrome() {
 
 /* ---------- Routing ---------- */
 
+// Deep links: #/FR (last used map type), #/FR/maps (figures), #/FR/stations, #/FR/detailed, and
+// #/FR/detailed@lat,lon,zoomz for a detailed-map view; the view part follows panning and zooming.
+const ROUTE = /^#\/([A-Z]{2})?(?:\/(maps|stations|detailed))?(?:@(-?[\d.]+),(-?[\d.]+),([\d.]+)z)?/;
+
 function route() {
-  const [, cc, tab] = location.hash.match(/^#\/([A-Z]{2})?\/?(maps|stations)?/) || [];
+  const [, cc, part, lat, lon, zoom] = location.hash.match(ROUTE) || [];
   const country = cc && state.manifest.countries[cc] ? cc : null;
+  if (part === "detailed" || part === "maps") rememberMode(part === "detailed" ? "detailed" : "figures");
+  state.linkView = lat ? { center: [+lon, +lat], zoom: +zoom } : null;
+  const tab = part === "stations" ? "stations" : part ? "maps" : null;
   $("#country-select").value = country || "";
   $("#view-europe").hidden = !!country;
   $("#view-country").hidden = !country;
@@ -220,7 +227,7 @@ function showCountry(cc, tab) {
 
   for (const t of ["maps", "stations"]) {
     const el = $(`#tab-${t}`);
-    el.href = `#/${cc}/${t}`;
+    el.href = t === "maps" ? mapsLink(cc) : `#/${cc}/stations`;
     el.setAttribute("aria-selected", String(t === tab));
     $(`#panel-${t}`).hidden = t !== tab;
   }
@@ -323,8 +330,24 @@ function getMode() {
   try { return localStorage.getItem(MODE_KEY) || "figures"; } catch { return "figures"; }
 }
 
-function setMode(mode) {
+function rememberMode(mode) {
   try { localStorage.setItem(MODE_KEY, mode); } catch { /* per-viewer convenience only */ }
+}
+
+function mapsLink(cc) {
+  return `#/${cc}/${getMode() === "detailed" && hasDetailed() ? "detailed" : "maps"}`;
+}
+
+// Update the address without a history entry or a hashchange (which would redraw the page).
+function setLink(hash) {
+  if (location.hash !== hash) history.replaceState(null, "", hash);
+}
+
+function setMode(mode) {
+  rememberMode(mode);
+  state.linkView = null;
+  setLink(mapsLink(state.cc));
+  $("#tab-maps").href = mapsLink(state.cc);
   applyMode();
 }
 
@@ -355,19 +378,52 @@ function destroyDetailed() {
 
 const lngLatBounds = (b) => [[b[0], b[1]], [b[2], b[3]]];
 
+// National topographic maps shown on top of MapTiler when zoomed in, per country. The Dutch TOPraster
+// WMS (Kadaster/PDOK, CC0) has one layer per scale and draws each only within its scale range. Bands are
+// map zoom levels, measured against the service: with 256 px images MapLibre requests tiles one zoom
+// level deeper than the map zoom, so map zoom 12 asks for z13 tiles, which TOP50raster draws.
+const PDOK_TOPRASTER = "https://service.pdok.nl/brt/topraster/wms/v1_0?service=WMS&request=GetMap&version=1.3.0" +
+  "&styles=&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true&layers=";
+const DETAIL_OVERLAYS = {
+  NL: {
+    bounds: [3.2, 50.7, 7.3, 53.7],
+    attribution: '<a href="https://www.pdok.nl/" target="_blank" rel="noopener">© Kadaster / PDOK TOPraster</a>',
+    layers: [["top250raster", 8.5, 10.5], ["top100raster", 10.5, 11.5], ["top50raster", 11.5, 12.5], ["top25raster", 12.5, 20]],
+  },
+};
+
+function addOverlays(map, cc) {
+  const o = DETAIL_OVERLAYS[cc];
+  if (!o) return;
+  map.on("load", () => {
+    const below = map.getLayer("soop") ? "soop" : undefined;  // keep routes (and HTML markers) on top
+    for (const [name, minzoom, maxzoom] of o.layers) {
+      map.addSource(`overlay-${name}`, { type: "raster", tiles: [PDOK_TOPRASTER + name], tileSize: 256,
+        bounds: o.bounds, maxzoom: 16, attribution: o.attribution });  // TOP25raster is empty beyond z16
+      map.addLayer({ id: `overlay-${name}`, type: "raster", source: `overlay-${name}`, minzoom, maxzoom }, below);
+    }
+  });
+}
+
 function renderDetailed(cc) {
   destroyDetailed();
   const c = state.manifest.countries[cc];
   const home = c.panels.find((p) => p.kind === "home") || c.panels[0];
+  const view = state.linkView;  // a deep-linked view wins over the home territory
   const main = new maplibregl.Map({
-    container: "detail-map", style: styleUrl(), bounds: lngLatBounds(home.bounds),
-    fitBoundsOptions: { padding: 30 }, attributionControl: { compact: true },
+    container: "detail-map", style: styleUrl(), attributionControl: { compact: true },
+    ...(view ? { center: view.center, zoom: view.zoom } : { bounds: lngLatBounds(home.bounds), fitBoundsOptions: { padding: 30 } }),
+  });
+  main.on("moveend", () => {
+    const c = main.getCenter();
+    setLink(`#/${cc}/detailed@${c.lat.toFixed(4)},${c.lng.toFixed(4)},${main.getZoom().toFixed(2)}z`);
   });
   main.addControl(new maplibregl.NavigationControl(), "top-right");
   main.addControl(new maplibregl.FullscreenControl(), "top-right");
   main.addControl(new maplibregl.ScaleControl(), "bottom-right");
   state.dmaps = [main];
   addStations(main, cc, null, false);
+  addOverlays(main, cc);
   $("#detail-home").onclick = () => main.fitBounds(lngLatBounds(home.bounds), { padding: 30 });
 
   // Remote and ocean panels become fixed insets, as on the print figures; a click flies the main map there.

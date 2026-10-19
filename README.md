@@ -61,7 +61,8 @@ Colours, the multi-domain distance and the track window are set in [config.py](s
 `out/web/` is a self-contained static site, built from [web/](web/): a front page with a Europe and a
 World view (the latter shows the stations in Africa, South America and overseas territories, and lists
 them in the side panel), where you click a member country (or pick one from the dropdown), then that country's map panels with SVG/PDF/PNG
-downloads and a sortable, filterable station table. Links are shareable (`#/world`, `#/FR`, `#/FR/stations`).
+downloads and a sortable, filterable station table. Links are shareable (`#/world`, `#/FR`, `#/FR/stations`, `#/FR/maps` for the figures,
+`#/FR/detailed` for the detailed map, which adds `@lat,lon,zoomz` as you pan and zoom).
 Serve the folder with any web server, e.g. `python -m http.server -d out/web`.
 
 It reads these files, which other sites can use too:
@@ -80,6 +81,9 @@ Country pages can switch from the figures to a **detailed map**: an interactive 
 remote and ocean panels stay fixed as insets while the main map pans and zooms; clicking an inset flies
 there. It appears when `MAPTILER_KEY` is set in `.env`; browsers get the key from `/api/config`, so
 restrict it to the site's domain in the MapTiler dashboard. The figures keep their own projections.
+For the Netherlands, the detailed map shows the national TOPraster maps (Kadaster/PDOK WMS, CC0) from
+zoom 8.5 inwards, TOP250raster to TOP25raster by zoom level (`DETAIL_OVERLAYS` in
+[web/app.js](web/app.js); other countries' national maps can be added there).
 
 A partial build (`icos-maps FR`) updates the existing site instead of replacing it. The GitHub Actions
 workflow in [.github/workflows/maps.yml](.github/workflows/maps.yml) rebuilds every night and on
