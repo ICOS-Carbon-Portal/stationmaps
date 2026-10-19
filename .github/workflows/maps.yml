@@ -1,0 +1,37 @@
+name: ICOS station maps
+
+on:
+  schedule:
+    - cron: "0 3 * * *"  # nightly
+  workflow_dispatch:  # "Run workflow" button for on-demand rebuilds
+    inputs:
+      countries:
+        description: "Country codes (space separated, empty = all 16)"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      # Previous station list, so the build can report what changed.
+      - uses: actions/cache@v4
+        with:
+          path: out/web/stations.csv
+          key: icos-stations-${{ github.run_id }}
+          restore-keys: icos-stations-
+      - run: uv run icos-maps --refresh $COUNTRIES
+        env:
+          COUNTRIES: ${{ github.event.inputs.countries }}
+      - run: cat out/CHANGES.txt >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: icos-maps-print
+          path: out/print
+      - uses: actions/upload-artifact@v4
+        with:
+          name: icos-maps-web
+          path: out/web
+          overwrite: true

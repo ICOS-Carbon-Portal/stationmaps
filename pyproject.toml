@@ -1,0 +1,26 @@
+[project]
+name = "icos-maps"
+version = "0.1.0"
+description = "Generate ICOS station network maps (print SVG/PDF + web GeoJSON) from Carbon Portal metadata"
+authors = [
+    { name = "Alex Vermeulen", email = "alex.vermeulen@icos-ri.eu" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.14.5",
+    "fsspec>=2026.9.0",
+    "geopandas>=1.2.0",
+    "matplotlib>=3.11.2",
+    "pyproj>=3.8.0",
+    "requests>=2.34.2",
+    "shapely>=2.2.0",
+    "xarray>=2026.9.0",
+    "zarr>=3.4.1",
+]
+
+[project.scripts]
+icos-maps = "icos_maps:main"
+
+[build-system]
+requires = ["uv_build>=0.12.20,<0.13.0"]
+build-backend = "uv_build"
