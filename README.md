@@ -90,7 +90,7 @@ zoom 8.5 inwards, TOP250raster to TOP25raster by zoom level (`DETAIL_OVERLAYS` i
 [web/app.js](web/app.js); other countries' national maps can be added there).
 
 The front-page map and the detailed maps have **Labelled / In labelling / Planned** toggles (Labelled
-on by default): "In labelling" are stations part-way through the labelling steps, "Planned" the rest
+and In labelling on by default): "In labelling" are stations part-way through the labelling steps, "Planned" the rest
 that are not labelled yet. The print figures always show all stations.
 
 A partial build (`icos-maps FR`) updates the existing site instead of replacing it. The GitHub Actions

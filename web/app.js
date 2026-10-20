@@ -34,10 +34,10 @@ const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const state = { manifest: null, tables: null, countries: null, world: null, stations: null, view: "europe" };
 const EUROPE_BOX = [-32, 27, 46, 82];
 
-// Labelling-status toggles on the interactive maps (front page and detailed map). Labelled is on by
-// default; the choice holds for the visit.
+// Labelling-status toggles on the interactive maps (front page and detailed map). Labelled and In
+// labelling are on by default; the choice holds for the visit.
 const STATUS_GROUPS = [["labelled", "Labelled"], ["inlabelling", "In labelling"], ["planned", "Planned"]];
-const statusShown = { labelled: true, inlabelling: false, planned: false };
+const statusShown = { labelled: true, inlabelling: true, planned: false };
 const statusGroup = (status) => (status === "Labelled" ? "labelled" : String(status).startsWith("In labelling") ? "inlabelling" : "planned");
 const shownByStatus = (f) => statusShown[statusGroup(f.properties.status)];
 
