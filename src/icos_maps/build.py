@@ -24,7 +24,7 @@ TABLE_COLUMNS = {
     "map_number": "Map number",
     "name": "Station name",
     "id": "Station abbreviation",
-    "theme_label": "Station type",
+    "domain": "Domain",
     "site_type": "Site type",
     "cls": "Station class",
     "location": "Country",  # where it stands; a country's table lists the stations it is responsible for
@@ -83,6 +83,7 @@ def load_network(refresh: bool) -> gpd.GeoDataFrame:
     stations["elevation"] = stations["elevation"].round(0)
     stations = add_climate(stations)
     stations["theme_label"] = stations["theme"].map(THEME_LABEL)
+    stations["domain"] = stations["theme"].str.capitalize()
     code_to_member = {code: cc for cc in MEMBERS for code in TERRITORIES.get(cc, [cc])}
     stations["member"] = stations["country"].map(code_to_member).fillna("")
     stations["member"] = stations["id"].map(OPERATED_BY).fillna(stations["member"])

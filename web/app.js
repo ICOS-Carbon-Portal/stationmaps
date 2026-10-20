@@ -17,7 +17,7 @@ const COLUMNS = [
   { key: "location", label: "Country", filter: "select" },
   { key: "responsible", label: "Responsible country", filter: "select", allOnly: true },
   { key: "id", label: "Abbreviation", cls: "code", filter: "text" },
-  { key: "theme", label: "Station type", filter: "select", format: (v) => THEME_NAMES[v] ?? v },
+  { key: "theme", label: "Domain", filter: "select", format: (v) => THEME_NAMES[v] ?? v },
   { key: "site_type", wide: true, label: "Site type", filter: "text" },
   { key: "cls", label: "Class", filter: "select" },
   { key: "pi", wide: true, label: "PI", filter: "text" },
