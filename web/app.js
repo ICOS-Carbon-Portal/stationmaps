@@ -32,7 +32,32 @@ const COLUMNS = [
 const $ = (sel) => document.querySelector(sel);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const state = { manifest: null, tables: null, countries: null, world: null, stations: null, view: "europe" };
-const EUROPE_BOX = [-32, 27, 46, 82];  // lon/lat window of the Europe view; stations outside it are listed separately
+const EUROPE_BOX = [-32, 27, 46, 82];
+
+// Labelling-status toggles on the interactive maps (front page and detailed map). Labelled is on by
+// default; the choice holds for the visit.
+const STATUS_GROUPS = [["labelled", "Labelled"], ["inlabelling", "In labelling"], ["planned", "Planned"]];
+const statusShown = { labelled: true, inlabelling: false, planned: false };
+const statusGroup = (status) => (status === "Labelled" ? "labelled" : String(status).startsWith("In labelling") ? "inlabelling" : "planned");
+const shownByStatus = (f) => statusShown[statusGroup(f.properties.status)];
+
+function renderStatusToggles() {
+  document.querySelectorAll("[data-status-toggles]").forEach((box) => {
+    // Counts for the whole network on the front page, for the country on its detailed map.
+    const counts = { labelled: 0, inlabelling: 0, planned: 0 };
+    const country = box.id === "detail-status" ? state.cc : null;
+    for (const f of state.stations.features) if (!country || f.properties.member === country) counts[statusGroup(f.properties.status)]++;
+    box.innerHTML = STATUS_GROUPS.map(([key, label]) =>
+      `<button type="button" class="status-toggle ${key}" data-status="${key}" aria-pressed="${statusShown[key]}">${label} <span class="n">${counts[key]}</span></button>`).join("");
+  });
+}
+
+function toggleStatus(key) {
+  statusShown[key] = !statusShown[key];
+  renderStatusToggles();
+  if (!$("#view-europe").hidden) drawMap();
+  applyStatusToDetailed();
+}  // lon/lat window of the Europe view; stations outside it are listed separately
 
 async function load() {
   const get = (f) => fetch(f).then((r) => { if (!r.ok) throw new Error(f); return r.json(); });
@@ -95,6 +120,11 @@ function setupChrome() {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") { const b = state.popupFor; closePopup(); b?.focus(); } });
   window.addEventListener("hashchange", closePopup);
 
+  renderStatusToggles();
+  document.addEventListener("click", (e) => {
+    const key = e.target.closest("[data-status]")?.dataset.status;
+    if (key) toggleStatus(key);
+  });
   $("#mode-figures").addEventListener("click", () => setMode("figures"));
   $("#mode-detailed").addEventListener("click", () => setMode("detailed"));
 
@@ -191,8 +221,8 @@ function drawMap() {
     })
     .on("mouseleave", () => { tooltip.hidden = true; highlight(null); });
 
-  const lines = state.stations.features.filter((f) => f.geometry.type !== "Point");
-  const points = state.stations.features.filter((f) => f.geometry.type === "Point");
+  const lines = state.stations.features.filter((f) => f.geometry.type !== "Point" && shownByStatus(f));
+  const points = state.stations.features.filter((f) => f.geometry.type === "Point" && shownByStatus(f));
   svg.append("g").selectAll("path").data(lines).join("path").attr("class", "soop").attr("d", path);
   svg.append("g").selectAll("circle").data(points).join("circle")
     .attr("class", "station")
@@ -266,6 +296,7 @@ function showCountry(cc, tab) {
   }).join("");
 
   state.cc = cc;
+  renderStatusToggles();
   $("#maps-toolbar").hidden = !hasDetailed();
   if (tab === "maps") applyMode();
   else destroyDetailed();
@@ -371,6 +402,7 @@ function applyMode() {
   $("#figures").hidden = detailed;
   $("#detail-wrap").hidden = !detailed;
   $("#detail-home").hidden = !detailed;
+  $("#detail-status").hidden = !detailed;
   if (detailed) renderDetailed(state.cc);
   else destroyDetailed();
 }
@@ -455,11 +487,13 @@ function renderDetailed(cc) {
 
 function addStations(map, cc, ids, small) {
   const feats = state.stations.features.filter((f) => f.properties.member === cc && (!ids || ids.includes(f.properties.id)));
-  const lines = feats.filter((f) => f.geometry.type !== "Point");
+  const lines = feats.filter((f) => f.geometry.type !== "Point")
+    .map((f) => ({ ...f, properties: { ...f.properties, group: statusGroup(f.properties.status) } }));
+  map._icosMarkers = [];
   if (lines.length) {
     map.on("load", () => {
       map.addSource("soop", { type: "geojson", data: { type: "FeatureCollection", features: lines } });
-      map.addLayer({ id: "soop", type: "line", source: "soop",
+      map.addLayer({ id: "soop", type: "line", source: "soop", filter: soopFilter(),
         paint: { "line-color": "#0B3B7A", "line-width": small ? 1 : 1.6, "line-opacity": 0.8 } });
     });
   }
@@ -470,10 +504,28 @@ function addStations(map, cc, ids, small) {
     el.style.background = COLORS[f.properties.theme];
     el.textContent = r?.map_number ?? "";
     const marker = new maplibregl.Marker({ element: el }).setLngLat(anchorOf(f.geometry)).addTo(map);
+    el.dataset.group = statusGroup(f.properties.status);
+    el.hidden = !statusShown[el.dataset.group];
+    map._icosMarkers.push(marker);
     if (!small && r) {
       el.title = r.name;
       marker.setPopup(new maplibregl.Popup({ offset: 14, maxWidth: "320px" }).setHTML(stationPopup(r, false)));
     }
+  }
+}
+
+function soopFilter() {
+  return ["in", ["get", "group"], ["literal", Object.keys(statusShown).filter((k) => statusShown[k])]];
+}
+
+function applyStatusToDetailed() {
+  for (const map of state.dmaps || []) {
+    for (const m of map._icosMarkers || []) {
+      const el = m.getElement();
+      el.hidden = !statusShown[el.dataset.group];
+      if (el.hidden && m.getPopup()?.isOpen()) m.togglePopup();
+    }
+    if (map.getLayer("soop")) map.setFilter("soop", soopFilter());
   }
 }
 

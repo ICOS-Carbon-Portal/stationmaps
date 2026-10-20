@@ -42,6 +42,7 @@
           <a role="tab" id="toggle-europe" href="#/">Europe</a>
           <a role="tab" id="toggle-world" href="#/world">World</a>
         </div>
+        <div class="status-toggles map-overlay" data-status-toggles role="group" aria-label="Show stations by labelling status"></div>
         <svg id="europe-map" role="img" aria-label="Map of Europe with the ICOS member countries highlighted"></svg>
         <div id="tooltip" class="tooltip" role="status" hidden></div>
         <ul class="map-legend" aria-label="Legend">
@@ -89,6 +90,7 @@
           <button type="button" id="mode-detailed" aria-pressed="false">Detailed map</button>
         </div>
         <button type="button" class="ghost" id="detail-home" hidden>↺ Home territory</button>
+        <div class="status-toggles" id="detail-status" data-status-toggles role="group" aria-label="Show stations by labelling status" hidden></div>
       </div>
       <div class="figures" id="figures"></div>
       <div class="detail-wrap" id="detail-wrap" hidden>

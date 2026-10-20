@@ -251,6 +251,20 @@ td .badge {
 }
 td .badge.ecosystem { color: #1B2430; }  /* white on lime is too low-contrast */
 .front-tabs { margin-bottom: 16px; }
+.status-toggles { display: flex; gap: 4px; flex-wrap: wrap; }
+.status-toggles.map-overlay {
+  position: absolute; top: 12px; left: 12px; z-index: 1; padding: 3px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow);
+}
+.status-toggle {
+  font: inherit; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  border: 1px solid transparent; background: none; color: var(--muted); display: inline-flex; gap: 6px; align-items: center;
+}
+.status-toggle::before { content: ""; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid currentColor; }
+.status-toggle[aria-pressed="true"] { background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--ink); border-color: color-mix(in srgb, var(--brand) 40%, transparent); }
+.status-toggle[aria-pressed="true"]::before { background: var(--brand); border-color: var(--brand); }
+.status-toggle .n { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+.status-toggle:hover { color: var(--ink); }
 .downloads { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 .downloads .dl-label { font-size: 13px; color: var(--muted); margin-right: 2px; }
 .downloads .button { margin-left: 0; border: 0; cursor: pointer; font-family: inherit; padding: 6px 12px; }
