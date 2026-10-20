@@ -311,6 +311,8 @@ td.date { white-space: nowrap; font-variant-numeric: tabular-nums; }
   .toolbar input { min-width: 0; flex: 1 1 100%; }
   .button { margin-left: 0; }
   .country-head h1 { font-size: 24px; }
+  /* Phones: status buttons in the flow below the Europe/World switch instead of over the map. */
+  .status-toggles.map-overlay { position: static; margin: 54px 10px 0; box-shadow: none; }
   .inset { width: 120px; }
   .inset .inset-map { height: 100px; }
   .map-legend { position: static; border: 0; border-top: 1px solid var(--line); border-radius: 0; }

@@ -186,13 +186,17 @@ function drawMap() {
   const world = state.view === "world";
   const svg = d3.select("#europe-map");
   const width = svg.node().clientWidth || 900;
-  const height = Math.round(width * (world ? 0.5 : 0.82));
+  // The world map starts below the overlaid status buttons and Europe/World switch (which wrap on phones).
+  const overlay = document.querySelector("#view-europe .status-toggles.map-overlay");
+  const floating = overlay && getComputedStyle(overlay).position === "absolute";
+  const top = world && floating ? Math.max(overlay.offsetHeight, 36) + 20 : 0;
+  const height = Math.round(width * (world ? 0.5 : 0.82)) + top;
   svg.attr("viewBox", `0 0 ${width} ${height}`).selectAll("*").remove();
   svg.attr("aria-label", world ? "World map with all ICOS stations" : "Map of Europe with the ICOS member countries highlighted");
 
   const outlines = world ? state.world : state.countries;
   const projection = world
-    ? d3.geoEqualEarth().rotate([-10, 0]).fitExtent([[8, 8], [width - 8, height - 8]], outlines)
+    ? d3.geoEqualEarth().rotate([-10, 0]).fitExtent([[8, top + 8], [width - 8, height - 8]], outlines)
     : d3.geoAzimuthalEqualArea().rotate([-10, -52]).fitExtent([[16, 16], [width - 16, height - 16]],
       { type: "FeatureCollection", features: outlines.features.filter((f) => f.properties.member) });
   const path = d3.geoPath(projection);
