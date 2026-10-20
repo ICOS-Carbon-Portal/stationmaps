@@ -19,6 +19,7 @@ uv run icos-maps --formats svg   # svg / pdf / png (default: all three)
 | Labelling status and date | Labelling application (graph `stationlabeling`): `STEP3APPROVED` = labelled, its status date = labelling date |
 | Ocean SOOP routes and fixed ocean station positions | ICOS ocean Zarr store, `https://zarr.icos-cp.eu/icos-socat.zarr` (cruises from the last `TRACK_YEARS` years) |
 | Country boundaries | Eurostat GISCO, 1:3M for country maps (© EuroGeographics) |
+| Climate zone (Köppen-Geiger) | Carbon Portal where present; otherwise read at the station position from the 1 km map for 1991–2020 of [Beck et al. (2023)](https://doi.org/10.6084/m9.figshare.21789074) (CC BY 4.0), marked with * |
 
 Stations of class 1, 2 and Associated count as part of the network (`NETWORK_CLASSES` in
 [config.py](src/icos_maps/config.py)), plus labelling-application entries that have no production
@@ -61,7 +62,10 @@ Colours, the multi-domain distance and the track window are set in [config.py](s
 `out/web/` is a self-contained static site, built from [web/](web/): a front page with a Europe and a
 World view (the latter shows the stations in Africa, South America and overseas territories, and lists
 them in the side panel), where you click a member country (or pick one from the dropdown), then that country's map panels with SVG/PDF/PNG
-downloads and a sortable, filterable station table. Links are shareable (`#/world`, `#/FR`, `#/FR/stations`, `#/FR/maps` for the figures,
+downloads and a station table. A **Stations** tab on the front page (`#/stations`) lists all stations.
+Station tables show coordinates, elevation and climate zone (NA for ship lines), sort by any column,
+filter per column (text anywhere; numbers and dates also `>500`, `<2020`, `100-500`) and download the
+rows shown as CSV, XLSX or KML. Links are shareable (`#/world`, `#/FR`, `#/FR/stations`, `#/FR/maps` for the figures,
 `#/FR/detailed` for the detailed map, which adds `@lat,lon,zoomz` as you pan and zoom).
 Serve the folder with any web server, e.g. `python -m http.server -d out/web`.
 

@@ -12,7 +12,7 @@ from .config import CACHE, NETWORK_CLASSES, SPARQL_URL
 STATIONS_QUERY = """
 prefix cpmeta: <http://meta.icos-cp.eu/ontologies/cpmeta/>
 prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-select ?uri ?id ?name ?country ?theme ?cls ?lat ?lon ?elevation ?labeled
+select ?uri ?id ?name ?country ?theme ?cls ?lat ?lon ?elevation ?labeled ?climate_code
        (group_concat(distinct ?orgName; separator="; ") as ?host)
        (sample(?eco) as ?site_type)
 where {
@@ -24,8 +24,10 @@ where {
   optional { ?uri cpmeta:hasLabelingDate ?labeled }
   optional { ?uri cpmeta:hasResponsibleOrganization/cpmeta:hasName ?orgName }
   optional { ?uri cpmeta:hasEcosystemType/rdfs:label ?eco }
+  optional { ?uri cpmeta:hasClimateZone ?cz }
+  bind(strafter(str(?cz), "koppen_") as ?climate_code)
 }
-group by ?uri ?id ?name ?country ?theme ?cls ?lat ?lon ?elevation ?labeled
+group by ?uri ?id ?name ?country ?theme ?cls ?lat ?lon ?elevation ?labeled ?climate_code
 """
 
 
@@ -34,7 +36,7 @@ group by ?uri ?id ?name ?country ?theme ?cls ?lat ?lon ?elevation ?labeled
 ENTRIES_QUERY = """
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX cpst: <http://meta.icos-cp.eu/ontologies/stationentry/>
-SELECT ?uri ?id ?name ?theme_label ?cls ?country ?lat ?lon ?site_type ?prod ?app_status ?app_status_date
+SELECT ?uri ?id ?name ?theme_label ?cls ?country ?lat ?lon ?elevation ?site_type ?prod ?app_status ?app_status_date
        (group_concat(distinct ?pi_name; separator="; ") as ?pi)
        (group_concat(distinct ?aff; separator="; ") as ?affiliation)
 FROM <http://meta.icos-cp.eu/resources/stationentry/>
@@ -45,6 +47,7 @@ WHERE {
        cpst:hasShortName ?id ; a/rdfs:label ?theme_label .
   optional { ?uri cpst:hasLat ?lat ; cpst:hasLon ?lon }
   optional { ?uri cpst:hasSiteType ?site_type }
+  optional { ?uri cpst:hasElevationAboveSea ?elevation }
   optional { ?uri cpst:hasProductionCounterpart ?prod }
   optional {
     ?uri cpst:hasPi ?pi_r . ?pi_r cpst:hasFirstName ?pf ; cpst:hasLastName ?pl .
@@ -55,7 +58,7 @@ WHERE {
     ?uri cpst:hasApplicationStatus ?app_status . optional { ?uri cpst:hasAppStatusDate ?app_status_date } } }
   bind(if(contains(?cls0, "Ass"), "Associated", ?cls0) as ?cls)
 }
-group by ?uri ?id ?name ?theme_label ?cls ?country ?lat ?lon ?site_type ?prod ?app_status ?app_status_date
+group by ?uri ?id ?name ?theme_label ?cls ?country ?lat ?lon ?elevation ?site_type ?prod ?app_status ?app_status_date
 """
 # Application status in the labelling application -> status shown on the maps and tables.
 # STEP3APPROVED means labelled (by the General Assembly); its status date is the labelling date.
@@ -106,7 +109,7 @@ def labelling_candidates(entries: pd.DataFrame) -> pd.DataFrame:
     df = entries[entries["prod"] == ""].drop(columns=["prod", "app_status_date"]).copy()
     df["theme"] = df.pop("theme_label").map(ENTRY_THEMES)
     df["host"] = df.pop("affiliation")
-    df["elevation"] = ""
+    df["climate_code"] = ""
     df["source"] = "labelling"
     # Their entry URIs are not public pages; the table shows their names without a link.
     df["link"] = ""

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 from shapely.geometry import MultiPolygon, Polygon, box
 from shapely.geometry.polygon import orient
@@ -28,14 +29,47 @@ TABLE_COLUMNS = {
     "cls": "Station class",
     "pi": "PI",
     "host": "Responsible institute",
+    "lat": "Latitude",
+    "lon": "Longitude",
+    "elevation": "Elevation (m)",
+    "climate": "Climate zone (Köppen-Geiger)",
     "labeled": "Labelling date",
     "status": "Status",
 }
 COMPARE_FIELDS = ["name", "theme", "cls", "labeled", "status", "lat", "lon", "host", "pi"]
 
 
+def add_climate(stations: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Köppen-Geiger zone: the Carbon Portal's where it has one, else read from the 1 km map at the
+    station position (climate_source 'map'). Ship lines and stations at sea have none."""
+    from . import climate
+
+    pts = stations.geometry.apply(lambda g: g if g is not None and g.geom_type == "Point" else None)
+    looked_up = climate.zones([p.x if p else np.nan for p in pts], [p.y if p else np.nan for p in pts])
+    descriptions = {code: desc for code, desc in climate.legend().values()}
+    codes, sources = [], []
+    for cp_code, found in zip(stations["climate_code"], looked_up):
+        if cp_code:
+            codes.append(cp_code); sources.append("carbon portal")
+        elif found:
+            codes.append(found[0]); sources.append("map")
+        else:
+            codes.append(""); sources.append("")
+    stations["climate_code"] = codes
+    stations["climate"] = [f"{c} {descriptions.get(c, '')}".strip() if c else "" for c in codes]
+    stations["climate_source"] = sources
+    return stations
+
+
 def load_network(refresh: bool) -> gpd.GeoDataFrame:
     stations = attach_ocean_geometry(fetch_stations(refresh), fetch_ocean_geometry(refresh))
+    # Coordinates of point stations as mapped (fixed ocean stations may come from the ocean store).
+    is_point = stations.geometry.apply(lambda g: g is not None and g.geom_type == "Point")
+    stations["lat"] = stations.geometry.apply(lambda g: round(g.y, 4) if g is not None and g.geom_type == "Point" else np.nan)
+    stations["lon"] = stations.geometry.apply(lambda g: round(g.x, 4) if g is not None and g.geom_type == "Point" else np.nan)
+    stations.loc[~is_point, "elevation"] = np.nan
+    stations["elevation"] = stations["elevation"].round(0)
+    stations = add_climate(stations)
     stations["theme_label"] = stations["theme"].map(THEME_LABEL)
     code_to_member = {code: cc for cc in MEMBERS for code in TERRITORIES.get(cc, [cc])}
     stations["member"] = stations["country"].map(code_to_member).fillna("")
@@ -49,10 +83,16 @@ def number_stations(st: gpd.GeoDataFrame) -> dict:
     return {sid: i + 1 for i, sid in enumerate(mapped["id"])}
 
 
+NOT_APPLICABLE_FOR_SOOP = ["lat", "lon", "elevation", "climate"]  # a moving ship has no single position
+
+
 def write_table(st: gpd.GeoDataFrame, numbers: dict, path: Path):
     df = pd.DataFrame(st.drop(columns="geometry"))
     df["map_number"] = df["id"].map(numbers).astype("Int64")
     df = df.sort_values(["map_number", "name"], na_position="last")
+    df["elevation"] = df["elevation"].round().astype("Int64")
+    df[NOT_APPLICABLE_FOR_SOOP] = df[NOT_APPLICABLE_FOR_SOOP].astype(object)
+    df.loc[df["platform"] == "SOOP", NOT_APPLICABLE_FOR_SOOP] = "NA"
     path.parent.mkdir(parents=True, exist_ok=True)
     df[list(TABLE_COLUMNS)].rename(columns=TABLE_COLUMNS).to_csv(path, index=False)
 
@@ -143,9 +183,13 @@ def table_rows(st: gpd.GeoDataFrame, numbers: dict) -> list[dict]:
     df = pd.DataFrame(st.drop(columns="geometry"))
     df["map_number"] = df["id"].map(numbers)
     df = df.sort_values(["map_number", "name"], na_position="last")
-    cols = [*TABLE_COLUMNS, "theme", "link", "country"]
-    return [{k: (None if pd.isna(v) else (int(v) if k == "map_number" else v)) for k, v in row.items()}
+    cols = [*TABLE_COLUMNS, "theme", "link", "country", "climate_source", "platform"]
+    rows = [{k: (None if pd.isna(v) else (int(round(v)) if k in ("map_number", "elevation") else v)) for k, v in row.items()}
             for row in df[cols].to_dict("records")]
+    for r in rows:
+        if r["platform"] == "SOOP":
+            r.update({k: "NA" for k in NOT_APPLICABLE_FOR_SOOP})
+    return rows
 
 
 def _clockwise(g):

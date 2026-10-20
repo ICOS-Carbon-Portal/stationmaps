@@ -8,22 +8,29 @@ const PANEL_KIND = { home: "Home territory", remote: "Remote stations", ocean: "
 // Every map is shown at the width where its station markers are this many pixels across, so markers
 // look the same on all panels (the renderer sizes them relative to each map; see manifest hotspots.r).
 const MARKER_PX = 14;
+// Station table columns. `filter`: text (substring), select (exact, options from the data), number or
+// date (>x, <x, a-b, or substring). `allOnly`: only in the all-stations table on the front page.
 const COLUMNS = [
-  { key: "map_number", label: "Map no.", cls: "num" },
-  { key: "name", label: "Station name" },
-  { key: "id", label: "Abbreviation", cls: "code" },
-  { key: "theme", label: "Station type" },
-  { key: "site_type", label: "Site type" },
-  { key: "cls", label: "Class" },
-  { key: "pi", label: "PI" },
-  { key: "host", label: "Responsible institute" },
-  { key: "labeled", label: "Labelling date", cls: "date" },
-  { key: "status", label: "Status" },
+  { key: "map_number", label: "Map no.", cls: "num", filter: "number" },
+  { key: "name", label: "Station name", filter: "text" },
+  { key: "country_name", label: "Country", filter: "select", allOnly: true },
+  { key: "id", label: "Abbreviation", cls: "code", filter: "text" },
+  { key: "theme", label: "Station type", filter: "select", format: (v) => THEME_NAMES[v] ?? v },
+  { key: "site_type", wide: true, label: "Site type", filter: "text" },
+  { key: "cls", label: "Class", filter: "select" },
+  { key: "pi", wide: true, label: "PI", filter: "text" },
+  { key: "host", wide: true, label: "Responsible institute", filter: "text" },
+  { key: "lat", label: "Latitude", cls: "coord", filter: "number" },
+  { key: "lon", label: "Longitude", cls: "coord", filter: "number" },
+  { key: "elevation", label: "Elevation (m)", cls: "coord", filter: "number" },
+  { key: "climate", wide: true, label: "Climate zone", filter: "text" },
+  { key: "labeled", label: "Labelling date", cls: "date", filter: "date" },
+  { key: "status", label: "Status", filter: "select" },
 ];
 
 const $ = (sel) => document.querySelector(sel);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const state = { manifest: null, tables: null, countries: null, world: null, stations: null, view: "europe", sort: { key: "map_number", dir: 1 } };
+const state = { manifest: null, tables: null, countries: null, world: null, stations: null, view: "europe" };
 const EUROPE_BOX = [-32, 27, 46, 82];  // lon/lat window of the Europe view; stations outside it are listed separately
 
 async function load() {
@@ -90,15 +97,10 @@ function setupChrome() {
   $("#mode-figures").addEventListener("click", () => setMode("figures"));
   $("#mode-detailed").addEventListener("click", () => setMode("detailed"));
 
-  $("#station-filter").addEventListener("input", renderTable);
-  $("#domain-filter").addEventListener("change", renderTable);
-  $("#status-filter").addEventListener("change", renderTable);
-  $("#station-table thead").addEventListener("click", (e) => {
-    const key = e.target.closest("th")?.dataset.key;
-    if (!key) return;
-    state.sort = { key, dir: state.sort.key === key ? -state.sort.dir : 1 };
-    renderTable();
-  });
+  state.countryTable = new StationTable($("#country-stations-table"), { allStations: false });
+  state.allTable = new StationTable($("#all-stations-table"), { allStations: true });
+  state.allTable.setRows(members().flatMap(([cc, c]) => (state.tables[cc] || []).map((r) => ({ ...r, country_name: c.name, member: cc }))),
+    "icos_stations.csv");
 }
 
 /* ---------- Routing ---------- */
@@ -113,14 +115,23 @@ function route() {
   if (part === "detailed" || part === "maps") rememberMode(part === "detailed" ? "detailed" : "figures");
   state.linkView = lat ? { center: [+lon, +lat], zoom: +zoom } : null;
   const tab = part === "stations" ? "stations" : part ? "maps" : null;
+  const allStations = !country && location.hash === "#/stations";
   $("#country-select").value = country || "";
-  $("#view-europe").hidden = !!country;
+  $("#front-tabs").hidden = !!country;
+  $("#view-europe").hidden = !!country || allStations;
+  $("#view-stations").hidden = !allStations;
   $("#view-country").hidden = !country;
+  $("#front-tab-map").setAttribute("aria-selected", String(!country && !allStations));
+  $("#front-tab-stations").setAttribute("aria-selected", String(allStations));
   if (country) {
     showCountry(country, tab || "maps");
+  } else if (allStations) {
+    destroyDetailed();
+    document.title = "All stations · ICOS Station Maps";
   } else {
     destroyDetailed();
     state.view = location.hash === "#/world" ? "world" : "europe";
+    $("#front-tab-map").href = state.view === "world" ? "#/world" : "#/";
     document.title = state.view === "world" ? "World · ICOS Station Maps" : "ICOS Station Maps";
     for (const v of ["europe", "world"]) $(`#toggle-${v}`).setAttribute("aria-selected", String(v === state.view));
     drawMap();
@@ -257,12 +268,9 @@ function showCountry(cc, tab) {
   $("#maps-toolbar").hidden = !hasDetailed();
   if (tab === "maps") applyMode();
   else destroyDetailed();
-  $("#csv-link").href = versioned(`maps/${cc}/${cc}_stations.csv`);
   const unmapped = c.unmapped || [];
-  $("#unmapped-note").hidden = !unmapped.length;
-  $("#unmapped-note").textContent = unmapped.length
-    ? `Not on the maps (no position or route data yet): ${unmapped.join(", ")}.` : "";
-  renderTable();
+  state.countryTable.setRows((state.tables[cc] || []).map((r) => ({ ...r, member: cc })), `${cc}_stations.csv`,
+    unmapped.length ? `Not on the maps (no position or route data yet): ${unmapped.join(", ")}.` : "");
 }
 
 function stationRow(cc, id) {
@@ -476,35 +484,263 @@ function anchorOf(g) {
   return longest[Math.floor(longest.length / 2)];
 }
 
-function renderTable() {
-  const rows = (state.tables[state.cc] || []).slice();
-  const q = $("#station-filter").value.trim().toLowerCase();
-  const domain = $("#domain-filter").value;
-  const status = $("#status-filter").value;
-  const shown = rows.filter((r) => (!domain || r.theme === domain) && (!status || (status === "labelled") === (r.status === "Labelled")) &&
-    (!q || COLUMNS.some((col) => String(r[col.key] ?? "").toLowerCase().includes(q))));
+/* ---------- Station table (country pages and the front page's Stations tab) ---------- */
 
-  const { key, dir } = state.sort;
-  shown.sort((a, b) => {
-    const x = a[key], y = b[key];
-    if (x == null || x === "") return 1;
-    if (y == null || y === "") return -1;
-    return (typeof x === "number" ? x - y : String(x).localeCompare(String(y))) * dir;
-  });
+const NA = "NA";  // not applicable, e.g. coordinates of a ship line
 
-  $("#station-table thead").innerHTML = "<tr>" + COLUMNS.map((col) =>
-    `<th scope="col" data-key="${col.key}"${col.key === key ? ` aria-sort="${dir > 0 ? "ascending" : "descending"}"` : ""}>${col.label}</th>`).join("") + "</tr>";
-  $("#station-table tbody").innerHTML = shown.map((r) => "<tr>" + COLUMNS.map((col) => {
-    const v = r[col.key];
-    if (col.key === "map_number") {
-      return `<td class="num">${v == null ? '<span class="muted">–</span>' : `<span class="badge ${r.theme}" style="background:${COLORS[r.theme]}">${v}</span>`}</td>`;
+// Filter expression for number and date columns: ">x", ">=x", "<x", "<=x", "a-b", else a substring.
+function matches(value, expr, kind) {
+  const v = value ?? "";
+  if (kind === "number" || kind === "date") {
+    const num = (x) => (kind === "number" ? parseFloat(x) : String(x));
+    const cmp = expr.match(/^(>=|<=|>|<)\s*(.+)$/);
+    const range = expr.match(kind === "number" ? /^(-?[\d.]+)\s*-\s*(-?[\d.]+)$/ : /^(\d{4}[\d-]*)\s*-\s*(\d{4}[\d-]*)$/);
+    if (cmp || range) {
+      if (v === "" || v === NA || (kind === "number" && Number.isNaN(parseFloat(v)))) return false;
+      const x = num(v);
+      if (range) return x >= num(range[1]) && x <= num(range[2]) + (kind === "date" ? "\uffff" : 0);
+      const y = num(cmp[2].trim());
+      return { ">": x > y, ">=": x >= y, "<": x < y, "<=": x <= y }[cmp[1]];
     }
-    if (col.key === "name") return r.link ? `<td><a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(v)}</a></td>` : `<td>${esc(v)}</td>`;
-    if (col.key === "status") return `<td><span class="status ${v === "Labelled" ? "ok" : "pending"}">${esc(v)}</span></td>`;
-    if (col.key === "theme") return `<td class="type"><i style="background:${COLORS[v]}"></i>${THEME_NAMES[v]}</td>`;
-    return `<td class="${col.cls || ""}">${v ? esc(v) : '<span class="muted">–</span>'}</td>`;
-  }).join("") + "</tr>").join("");
-  $("#station-count").textContent = `${shown.length} of ${rows.length} stations`;
+  }
+  return String(v).toLowerCase().includes(expr.toLowerCase());
+}
+
+class StationTable {
+  constructor(host, { allStations }) {
+    this.host = host;
+    this.columns = COLUMNS.filter((c) => allStations || !c.allOnly);
+    this.sort = { key: allStations ? "country_name" : "map_number", dir: 1 };
+    this.filters = {};
+    this.rows = [];
+    host.innerHTML = `
+      <div class="toolbar">
+        <input type="search" class="table-search" placeholder="Search all columns…" aria-label="Search all columns">
+        <span class="count"></span>
+        <button type="button" class="ghost clear-filters">Clear filters</button>
+        <span class="downloads" role="group" aria-label="Download the stations shown">
+          <span class="dl-label">Download</span>
+          <button type="button" class="button" data-format="csv">CSV</button>
+          <button type="button" class="button" data-format="xlsx">XLSX</button>
+          <button type="button" class="button" data-format="kml">KML</button>
+        </span>
+      </div>
+      <div class="table-wrap"><table class="station-table"><thead></thead><tbody></tbody></table></div>
+      <p class="note table-note"></p>
+      <p class="note">* Climate zone read from the Köppen-Geiger 1 km map for 1991–2020 (Beck et al. 2023) at the station position;
+        the others come from the Carbon Portal. NA: not applicable (ship lines have no single position).</p>`;
+    this.$ = (sel) => host.querySelector(sel);
+    this.$(".table-search").addEventListener("input", (e) => { this.search = e.target.value.trim(); this.renderBody(); });
+    this.$(".clear-filters").addEventListener("click", () => {
+      this.filters = {};
+      this.search = "";
+      this.$(".table-search").value = "";
+      this.renderHead();
+      this.renderBody();
+    });
+    this.$("thead").addEventListener("click", (e) => {
+      const key = e.target.closest("th[data-key]")?.dataset.key;
+      if (!key || e.target.closest(".filter-row")) return;
+      this.sort = { key, dir: this.sort.key === key ? -this.sort.dir : 1 };
+      this.renderHead();
+      this.renderBody();
+    });
+    this.$("thead").addEventListener("input", (e) => {
+      const key = e.target.dataset.filter;
+      if (!key) return;
+      this.filters[key] = e.target.value.trim();
+      this.renderBody();
+    });
+    this.$(".downloads").addEventListener("click", (e) => {
+      const format = e.target.closest("[data-format]")?.dataset.format;
+      if (format) this.download(format);
+    });
+  }
+
+  setRows(rows, csvName, note = "") {
+    this.rows = rows;
+    this.fileBase = csvName.replace(/\.csv$/, "");
+    this.filters = {};
+    this.search = "";
+    this.$(".table-search").value = "";
+    this.$(".table-note").textContent = note;
+    this.$(".table-note").hidden = !note;
+    this.renderHead();
+    this.renderBody();
+  }
+
+  renderHead() {
+    const { key, dir } = this.sort;
+    const head = this.columns.map((c) =>
+      `<th scope="col" data-key="${c.key}"${c.wide ? ' class="wide"' : ""}${c.key === key ? ` aria-sort="${dir > 0 ? "ascending" : "descending"}"` : ""}>${c.label}</th>`).join("");
+    const filters = this.columns.map((c) => {
+      const value = this.filters[c.key] ?? "";
+      const label = `Filter ${c.label}`;
+      if (c.filter === "select") {
+        const options = [...new Set(this.rows.map((r) => r[c.key]).filter((v) => v != null && v !== ""))].sort();
+        return `<th><select data-filter="${c.key}" aria-label="${label}"><option value="">All</option>${options.map((o) =>
+          `<option value="${esc(o)}"${o === value ? " selected" : ""}>${esc(c.format ? c.format(o) : o)}</option>`).join("")}</select></th>`;
+      }
+      const hint = c.filter === "number" ? ">500" : c.filter === "date" ? ">2022" : "Filter";
+      return `<th><input type="search" data-filter="${c.key}" value="${esc(value)}" placeholder="${hint}" aria-label="${label}"></th>`;
+    }).join("");
+    this.$("thead").innerHTML = `<tr>${head}</tr><tr class="filter-row">${filters}</tr>`;
+  }
+
+  visibleRows() {
+    const q = (this.search || "").toLowerCase();
+    const shown = this.rows.filter((r) =>
+      this.columns.every((c) => {
+        const f = this.filters[c.key];
+        if (!f) return true;
+        return c.filter === "select" ? String(r[c.key]) === f : matches(r[c.key], f, c.filter);
+      }) &&
+      (!q || this.columns.some((c) => String((c.format ? c.format(r[c.key]) : r[c.key]) ?? "").toLowerCase().includes(q))));
+    const { key, dir } = this.sort;
+    const blank = (x) => x == null || x === "" || x === NA;
+    return shown.sort((a, b) => {
+      const x = a[key], y = b[key];
+      if (blank(x)) return blank(y) ? 0 : 1;
+      if (blank(y)) return -1;
+      return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y))) * dir;
+    });
+  }
+
+  cell(c, r) {
+    const v = r[c.key];
+    const empty = '<span class="muted">–</span>';
+    switch (c.key) {
+      case "map_number":
+        return `<td class="num">${v == null ? empty : `<span class="badge ${r.theme}" style="background:${COLORS[r.theme]}">${v}</span>`}</td>`;
+      case "name":
+        return r.link ? `<td><a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(v)}</a></td>` : `<td>${esc(v)}</td>`;
+      case "country_name":
+        return `<td><a href="#/${esc(r.member)}/stations">${esc(v)}</a></td>`;
+      case "status":
+        return `<td><span class="status ${v === "Labelled" ? "ok" : "pending"}">${esc(v)}</span></td>`;
+      case "theme":
+        return `<td class="type"><i style="background:${COLORS[v]}"></i>${THEME_NAMES[v]}</td>`;
+      case "climate":
+        if (v === NA) return `<td class="muted">${NA}</td>`;
+        return `<td>${v ? esc(v) + (r.climate_source === "map" ? '<span class="derived" title="From the Köppen-Geiger 1 km map (Beck et al. 2023)">*</span>' : "") : empty}</td>`;
+      default:
+        if (v === NA) return `<td class="${c.cls || ""} muted">${NA}</td>`;
+        return `<td class="${c.cls || ""}">${v != null && v !== "" ? esc(c.format ? c.format(v) : v) : empty}</td>`;
+    }
+  }
+
+  renderBody() {
+    const shown = this.visibleRows();
+    this.$("tbody").innerHTML = shown.map((r) => `<tr>${this.columns.map((c) => this.cell(c, r)).join("")}</tr>`).join("") ||
+      `<tr><td colspan="${this.columns.length}" class="muted empty">No stations match these filters.</td></tr>`;
+    this.$(".count").textContent = `${shown.length} of ${this.rows.length} stations`;
+    this.shown = shown;
+  }
+
+  // Downloads contain the rows currently shown (filters and sort applied).
+  download(format) {
+    const values = (r) => this.columns.map((c) => (c.format ? c.format(r[c.key]) : r[c.key]));
+    const header = this.columns.map((c) => c.label);
+    let blob;
+    if (format === "csv") {
+      const quote = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      const lines = [header, ...this.shown.map(values)].map((row) => row.map(quote).join(","));
+      blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    } else if (format === "xlsx") {
+      blob = xlsxBlob(header, this.shown.map(values), "Stations");
+    } else {
+      blob = kmlBlob(this.shown, this.columns, this.fileBase);
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${this.fileBase}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+}
+
+/* ---------- XLSX and KML export (no libraries) ---------- */
+
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (const b of bytes) c = CRC_TABLE[(c ^ b) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+// A zip archive with stored (uncompressed) entries: enough for a valid .xlsx.
+function zipBlob(files, type) {
+  const enc = new TextEncoder();
+  const parts = [], central = [];
+  let offset = 0;
+  const u16 = (v) => [v & 0xff, (v >>> 8) & 0xff];
+  const u32 = (v) => [v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff];
+  for (const [name, text] of Object.entries(files)) {
+    const nameBytes = enc.encode(name), data = enc.encode(text), crc = crc32(data);
+    const common = [...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(nameBytes.length)];
+    const local = new Uint8Array([...u32(0x04034b50), ...common, ...u16(0), ...nameBytes]);
+    central.push(new Uint8Array([...u32(0x02014b50), ...u16(20), ...common, ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset), ...nameBytes]));
+    parts.push(local, data);
+    offset += local.length + data.length;
+  }
+  const size = central.reduce((n, c) => n + c.length, 0);
+  const end = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(central.length), ...u16(central.length), ...u32(size), ...u32(offset), ...u16(0)]);
+  return new Blob([...parts, ...central, end], { type });
+}
+
+const xmlEsc = (v) => String(v ?? "").replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" }[c]))
+  .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "");
+
+function xlsxBlob(header, rows, sheetName) {
+  const col = (i) => (i >= 26 ? String.fromCharCode(64 + Math.floor(i / 26)) : "") + String.fromCharCode(65 + (i % 26));
+  const cell = (v, r, c) => {
+    const ref = `${col(c)}${r}`;
+    if (typeof v === "number" && Number.isFinite(v)) return `<c r="${ref}"><v>${v}</v></c>`;
+    if (v == null || v === "") return "";
+    return `<c r="${ref}" t="inlineStr"${r === 1 ? ' s="1"' : ""}><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
+  };
+  const sheetRows = [header, ...rows].map((row, i) => `<row r="${i + 1}">${row.map((v, c) => cell(v, i + 1, c)).join("")}</row>`).join("");
+  const last = `${col(header.length - 1)}${rows.length + 1}`;
+  const widths = header.map((h, c) => Math.min(48, Math.max(h.length, ...rows.map((r) => String(r[c] ?? "").length)) + 2));
+  return zipBlob({
+    "[Content_Types].xml": '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>',
+    "_rels/.rels": '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+    "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${xmlEsc(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+    "xl/_rels/workbook.xml.rels": '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
+    "xl/styles.xml": '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="2"><xf xfId="0"/><xf xfId="0" fontId="1" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>',
+    "xl/worksheets/sheet1.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols><sheetData>${sheetRows}</sheetData><autoFilter ref="A1:${last}"/></worksheet>`,
+  }, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+}
+
+// KML colours are aabbggrr.
+const KML_COLORS = { atmosphere: "ff7d00e5", ecosystem: "ff0bcaaf", ocean: "ffc8a600" };
+
+function kmlBlob(rows, columns, title) {
+  const geometry = Object.fromEntries(state.stations.features.map((f) => [`${f.properties.member}|${f.properties.id}`, f.geometry]));
+  const coords = (pts) => pts.map(([x, y]) => `${x},${y}`).join(" ");
+  const styles = Object.entries(KML_COLORS).map(([t, c]) => `<Style id="${t}"><IconStyle><color>${c}</color><scale>0.9</scale>` +
+    `<Icon><href>https://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon></IconStyle>` +
+    `<LineStyle><color>ff7a3b0b</color><width>2</width></LineStyle></Style>`).join("");
+  const placemarks = rows.map((r) => {
+    const g = geometry[`${r.member}|${r.id}`];
+    if (!g) return "";
+    const shape = g.type === "Point" ? `<Point><coordinates>${coords([g.coordinates])}</coordinates></Point>`
+      : g.type === "LineString" ? `<LineString><tessellate>1</tessellate><coordinates>${coords(g.coordinates)}</coordinates></LineString>`
+      : `<MultiGeometry>${g.coordinates.map((l) => `<LineString><tessellate>1</tessellate><coordinates>${coords(l)}</coordinates></LineString>`).join("")}</MultiGeometry>`;
+    const data = columns.map((c) => `<Data name="${xmlEsc(c.label)}"><value>${xmlEsc(c.format ? c.format(r[c.key]) : r[c.key])}</value></Data>`).join("");
+    const link = r.link ? `<atom:link href="${xmlEsc(r.link)}"/>` : "";
+    return `<Placemark><name>${xmlEsc(r.name)}</name>${link}<styleUrl>#${r.theme}</styleUrl><ExtendedData>${data}</ExtendedData>${shape}</Placemark>`;
+  }).join("");
+  const kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">` +
+    `<Document><name>${xmlEsc(title)}</name><description>ICOS stations, ${xmlEsc(state.manifest.generated)}</description>${styles}${placemarks}</Document></kml>`;
+  return new Blob([kml], { type: "application/vnd.google-earth.kml+xml" });
 }
 
 function debounce(fn, ms) {

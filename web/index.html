@@ -30,6 +30,11 @@
 </header>
 
 <main>
+  <div class="tabs front-tabs" id="front-tabs" role="tablist" hidden>
+    <a role="tab" id="front-tab-map" href="#/">Map</a>
+    <a role="tab" id="front-tab-stations" href="#/stations">Stations</a>
+  </div>
+
   <section id="view-europe" class="view" hidden>
     <div class="europe-layout">
       <div class="map-card">
@@ -59,6 +64,14 @@
     </div>
   </section>
 
+  <section id="view-stations" class="view" hidden>
+    <div class="all-head">
+      <h1>All ICOS stations</h1>
+      <p class="lede">Every station of the network in one table. Filter with the fields under the column headings: text matches anywhere, numbers and dates accept <code>&gt;500</code>, <code>&lt;2020</code> or <code>100-500</code>.</p>
+    </div>
+    <div id="all-stations-table"></div>
+  </section>
+
   <section id="view-country" class="view" hidden>
     <nav class="crumbs" aria-label="Breadcrumb"><a href="#/">Europe</a><span aria-hidden="true">/</span><span id="crumb-country"></span></nav>
     <div class="country-head">
@@ -84,29 +97,7 @@
       </div>
     </div>
     <div id="panel-stations" role="tabpanel" aria-labelledby="tab-stations" hidden>
-      <div class="toolbar">
-        <input type="search" id="station-filter" placeholder="Filter stations…" aria-label="Filter stations">
-        <select id="domain-filter" aria-label="Filter by domain">
-          <option value="">All domains</option>
-          <option value="atmosphere">Atmosphere</option>
-          <option value="ecosystem">Ecosystem</option>
-          <option value="ocean">Ocean</option>
-        </select>
-        <select id="status-filter" aria-label="Filter by labelling status">
-          <option value="">Any status</option>
-          <option value="labelled">Labelled</option>
-          <option value="unlabelled">Not yet labelled</option>
-        </select>
-        <span class="count" id="station-count"></span>
-        <a class="button" id="csv-link" download>Download CSV</a>
-      </div>
-      <div class="table-wrap">
-        <table id="station-table">
-          <thead></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <p class="note" id="unmapped-note" hidden></p>
+      <div id="country-stations-table"></div>
     </div>
   </section>
 

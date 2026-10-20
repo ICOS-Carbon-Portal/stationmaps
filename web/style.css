@@ -233,7 +233,7 @@ main { flex: 1; width: 100%; max-width: 1360px; margin: 0 auto; padding: 20px 16
   background: var(--brand); color: #fff; text-decoration: none;
 }
 .button:hover { background: var(--brand-ink); }
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { padding: 9px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
 th {
@@ -250,6 +250,27 @@ td .badge {
   color: #fff; font-size: 11px; font-weight: 700;
 }
 td .badge.ecosystem { color: #1B2430; }  /* white on lime is too low-contrast */
+.front-tabs { margin-bottom: 16px; }
+.downloads { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.downloads .dl-label { font-size: 13px; color: var(--muted); margin-right: 2px; }
+.downloads .button { margin-left: 0; border: 0; cursor: pointer; font-family: inherit; padding: 6px 12px; }
+.all-head { margin-bottom: 12px; }
+.all-head h1 { font-size: 26px; font-weight: 800; }
+.all-head .lede { margin: 6px 0 0; }
+.all-head code { font-size: 12px; background: color-mix(in srgb, var(--muted) 14%, transparent); padding: 1px 4px; border-radius: 4px; }
+.filter-row th { padding: 4px 6px 8px; cursor: default; background: var(--card); top: 36px; }
+.filter-row input, .filter-row select {
+  width: 100%; min-width: 70px; font: inherit; font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0;
+  padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink);
+}
+.filter-row input:focus-visible, .filter-row select:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
+.table-search { min-width: 240px; flex: 0 1 320px; }
+td.coord { white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; }
+td.empty { text-align: center; padding: 24px; }
+.station-table th.wide { min-width: 190px; }
+.station-table th[data-key="name"] { min-width: 150px; }
+.derived { color: var(--brand-ink); font-weight: 700; margin-left: 2px; cursor: help; }
+.table-wrap { max-height: 75vh; }
 td.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; white-space: nowrap; }
 td.date { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .type { white-space: nowrap; }

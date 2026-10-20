@@ -14,6 +14,7 @@ dependencies = [
     "geopandas>=1.2.0",
     "matplotlib>=3.11.2",
     "pyproj>=3.8.0",
+    "rasterio>=1.5.2",
     "requests>=2.34.2",
     "shapely>=2.2.0",
     "uvicorn>=0.54.0",
