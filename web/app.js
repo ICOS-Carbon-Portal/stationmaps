@@ -9,11 +9,12 @@ const PANEL_KIND = { home: "Home territory", remote: "Remote stations", ocean: "
 // look the same on all panels (the renderer sizes them relative to each map; see manifest hotspots.r).
 const MARKER_PX = 14;
 // Station table columns. `filter`: text (substring), select (exact, options from the data), number or
-// date (>x, <x, a-b, or substring). `allOnly`: only in the all-stations table on the front page.
+// date (>x, <x, a-b, or substring).
 const COLUMNS = [
   { key: "map_number", label: "Map no.", cls: "num", filter: "number" },
   { key: "name", label: "Station name", filter: "text" },
-  { key: "country_name", label: "Country", filter: "select", allOnly: true },
+  { key: "location", label: "Country", filter: "select" },
+  { key: "responsible", label: "Responsible country", filter: "select" },
   { key: "id", label: "Abbreviation", cls: "code", filter: "text" },
   { key: "theme", label: "Station type", filter: "select", format: (v) => THEME_NAMES[v] ?? v },
   { key: "site_type", wide: true, label: "Site type", filter: "text" },
@@ -99,7 +100,7 @@ function setupChrome() {
 
   state.countryTable = new StationTable($("#country-stations-table"), { allStations: false });
   state.allTable = new StationTable($("#all-stations-table"), { allStations: true });
-  state.allTable.setRows(members().flatMap(([cc, c]) => (state.tables[cc] || []).map((r) => ({ ...r, country_name: c.name, member: cc }))),
+  state.allTable.setRows(members().flatMap(([cc]) => (state.tables[cc] || []).map((r) => ({ ...r, member: cc }))),
     "icos_stations.csv");
 }
 
@@ -509,8 +510,8 @@ function matches(value, expr, kind) {
 class StationTable {
   constructor(host, { allStations }) {
     this.host = host;
-    this.columns = COLUMNS.filter((c) => allStations || !c.allOnly);
-    this.sort = { key: allStations ? "country_name" : "map_number", dir: 1 };
+    this.columns = COLUMNS;
+    this.sort = { key: allStations ? "responsible" : "map_number", dir: 1 };
     this.filters = {};
     this.rows = [];
     host.innerHTML = `
@@ -614,7 +615,7 @@ class StationTable {
         return `<td class="num">${v == null ? empty : `<span class="badge ${r.theme}" style="background:${COLORS[r.theme]}">${v}</span>`}</td>`;
       case "name":
         return r.link ? `<td><a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(v)}</a></td>` : `<td>${esc(v)}</td>`;
-      case "country_name":
+      case "responsible":
         return `<td><a href="#/${esc(r.member)}/stations">${esc(v)}</a></td>`;
       case "status":
         return `<td><span class="status ${v === "Labelled" ? "ok" : "pending"}">${esc(v)}</span></td>`;

@@ -27,6 +27,8 @@ TABLE_COLUMNS = {
     "theme_label": "Station type",
     "site_type": "Site type",
     "cls": "Station class",
+    "location": "Country",
+    "responsible": "Responsible country",
     "pi": "PI",
     "host": "Responsible institute",
     "lat": "Latitude",
@@ -61,6 +63,17 @@ def add_climate(stations: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return stations
 
 
+# Station country codes without their own GISCO country (part of another country's outline there).
+EXTRA_COUNTRY_NAMES = {"GF": "French Guiana", "RE": "Réunion", "GP": "Guadeloupe", "MQ": "Martinique", "YT": "Mayotte"}
+
+
+def country_names(codes) -> dict:
+    gisco = gisco_countries("60").set_index("CNTR_ID")["NAME_ENGL"]
+    iso = {ISO_TO_GISCO.get(c, c): c for c in codes}
+    names = {iso[g]: n for g, n in gisco.items() if g in iso}
+    return {c: MEMBERS.get(c) or EXTRA_COUNTRY_NAMES.get(c) or names.get(c, c) for c in codes}
+
+
 def load_network(refresh: bool) -> gpd.GeoDataFrame:
     stations = attach_ocean_geometry(fetch_stations(refresh), fetch_ocean_geometry(refresh))
     # Coordinates of point stations as mapped (fixed ocean stations may come from the ocean store).
@@ -74,6 +87,9 @@ def load_network(refresh: bool) -> gpd.GeoDataFrame:
     code_to_member = {code: cc for cc in MEMBERS for code in TERRITORIES.get(cc, [cc])}
     stations["member"] = stations["country"].map(code_to_member).fillna("")
     stations["member"] = stations["id"].map(OPERATED_BY).fillna(stations["member"])
+    # Where the station stands, and the member country responsible for it (they differ for OPERATED_BY).
+    stations["location"] = stations["country"].map(country_names(stations["country"].unique()))
+    stations["responsible"] = stations["member"].map(MEMBERS).fillna("")
     return stations
 
 
