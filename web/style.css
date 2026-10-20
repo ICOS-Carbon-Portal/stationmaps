@@ -265,6 +265,7 @@ td .badge.ecosystem { color: #1B2430; }  /* white on lime is too low-contrast */
 .status-toggle[aria-pressed="true"]::before { background: var(--brand); border-color: var(--brand); }
 .status-toggle .n { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
 .status-toggle:hover { color: var(--ink); }
+.status-note { font-size: 11px; color: var(--muted); align-self: center; padding: 0 6px; cursor: help; }
 .downloads { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 .downloads .dl-label { font-size: 13px; color: var(--muted); margin-right: 2px; }
 .downloads .button { margin-left: 0; border: 0; cursor: pointer; font-family: inherit; padding: 6px 12px; }

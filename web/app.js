@@ -43,12 +43,16 @@ const shownByStatus = (f) => statusShown[statusGroup(f.properties.status)];
 
 function renderStatusToggles() {
   document.querySelectorAll("[data-status-toggles]").forEach((box) => {
-    // Counts for the whole network on the front page, for the country on its detailed map.
-    const counts = { labelled: 0, inlabelling: 0, planned: 0 };
+    // All stations (as in the KPI boxes and tables) of the network, or of the country on its detailed map.
     const country = box.id === "detail-status" ? state.cc : null;
-    for (const f of state.stations.features) if (!country || f.properties.member === country) counts[statusGroup(f.properties.status)]++;
+    const rows = Object.entries(state.tables).filter(([cc]) => !country || cc === country).flatMap(([, r]) => r);
+    const counts = { labelled: 0, inlabelling: 0, planned: 0 };
+    for (const r of rows) counts[statusGroup(r.status)]++;
+    // Stations without a position (ship lines without route data) are counted but cannot be drawn.
+    const notDrawn = rows.filter((r) => r.map_number == null && statusShown[statusGroup(r.status)]);
     box.innerHTML = STATUS_GROUPS.map(([key, label]) =>
-      `<button type="button" class="status-toggle ${key}" data-status="${key}" aria-pressed="${statusShown[key]}">${label} <span class="n">${counts[key]}</span></button>`).join("");
+      `<button type="button" class="status-toggle ${key}" data-status="${key}" aria-pressed="${statusShown[key]}">${label} <span class="n">${counts[key]}</span></button>`).join("") +
+      (notDrawn.length ? `<span class="status-note" title="${esc(notDrawn.map((r) => r.name).join(", "))}">${notDrawn.length} without map position</span>` : "");
   });
 }
 
