@@ -27,8 +27,7 @@ TABLE_COLUMNS = {
     "theme_label": "Station type",
     "site_type": "Site type",
     "cls": "Station class",
-    "location": "Country",
-    "responsible": "Responsible country",
+    "location": "Country",  # where it stands; a country's table lists the stations it is responsible for
     "pi": "PI",
     "host": "Responsible institute",
     "lat": "Latitude",
@@ -199,7 +198,7 @@ def table_rows(st: gpd.GeoDataFrame, numbers: dict) -> list[dict]:
     df = pd.DataFrame(st.drop(columns="geometry"))
     df["map_number"] = df["id"].map(numbers)
     df = df.sort_values(["map_number", "name"], na_position="last")
-    cols = [*TABLE_COLUMNS, "theme", "link", "country", "climate_source", "platform"]
+    cols = [*TABLE_COLUMNS, "responsible", "theme", "link", "country", "climate_source", "platform"]
     rows = [{k: (None if pd.isna(v) else (int(round(v)) if k in ("map_number", "elevation") else v)) for k, v in row.items()}
             for row in df[cols].to_dict("records")]
     for r in rows:

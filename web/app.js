@@ -9,12 +9,13 @@ const PANEL_KIND = { home: "Home territory", remote: "Remote stations", ocean: "
 // look the same on all panels (the renderer sizes them relative to each map; see manifest hotspots.r).
 const MARKER_PX = 14;
 // Station table columns. `filter`: text (substring), select (exact, options from the data), number or
-// date (>x, <x, a-b, or substring).
+// date (>x, <x, a-b, or substring). `allOnly`: only in the all-stations table; a country's table lists
+// exactly the stations that country is responsible for, so the column would add nothing there.
 const COLUMNS = [
   { key: "map_number", label: "Map no.", cls: "num", filter: "number" },
   { key: "name", label: "Station name", filter: "text" },
   { key: "location", label: "Country", filter: "select" },
-  { key: "responsible", label: "Responsible country", filter: "select" },
+  { key: "responsible", label: "Responsible country", filter: "select", allOnly: true },
   { key: "id", label: "Abbreviation", cls: "code", filter: "text" },
   { key: "theme", label: "Station type", filter: "select", format: (v) => THEME_NAMES[v] ?? v },
   { key: "site_type", wide: true, label: "Site type", filter: "text" },
@@ -566,7 +567,7 @@ function matches(value, expr, kind) {
 class StationTable {
   constructor(host, { allStations }) {
     this.host = host;
-    this.columns = COLUMNS;
+    this.columns = COLUMNS.filter((c) => allStations || !c.allOnly);
     this.sort = { key: allStations ? "responsible" : "map_number", dir: 1 };
     this.filters = {};
     this.rows = [];
