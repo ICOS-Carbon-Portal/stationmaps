@@ -252,9 +252,9 @@ td .badge {
 td .badge.ecosystem { color: #1B2430; }  /* white on lime is too low-contrast */
 .front-tabs { margin-bottom: 16px; }
 .status-toggles { display: flex; gap: 4px; flex-wrap: wrap; }
-.status-toggles.map-overlay {
-  position: absolute; top: 12px; left: 12px; z-index: 1; padding: 3px; background: var(--card);
-  border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow);
+.map-controls {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px; border-bottom: 1px solid var(--line);
 }
 .status-toggle {
   font: inherit; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer;
@@ -265,7 +265,6 @@ td .badge.ecosystem { color: #1B2430; }  /* white on lime is too low-contrast */
 .status-toggle[aria-pressed="true"]::before { background: var(--brand); border-color: var(--brand); }
 .status-toggle .n { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
 .status-toggle:hover { color: var(--ink); }
-.status-note { font-size: 11px; color: var(--muted); align-self: center; padding: 0 6px; cursor: help; }
 .downloads { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 .downloads .dl-label { font-size: 13px; color: var(--muted); margin-right: 2px; }
 .downloads .button { margin-left: 0; border: 0; cursor: pointer; font-family: inherit; padding: 6px 12px; }
@@ -311,8 +310,6 @@ td.date { white-space: nowrap; font-variant-numeric: tabular-nums; }
   .toolbar input { min-width: 0; flex: 1 1 100%; }
   .button { margin-left: 0; }
   .country-head h1 { font-size: 24px; }
-  /* Phones: status buttons in the flow below the Europe/World switch instead of over the map. */
-  .status-toggles.map-overlay { position: static; margin: 54px 10px 0; box-shadow: none; }
   .inset { width: 120px; }
   .inset .inset-map { height: 100px; }
   .map-legend { position: static; border: 0; border-top: 1px solid var(--line); border-radius: 0; }
