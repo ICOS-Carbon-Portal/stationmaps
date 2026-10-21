@@ -252,6 +252,12 @@ td .badge {
 td .badge.ecosystem { color: #1B2430; }  /* white on lime is too low-contrast */
 .front-tabs { margin-bottom: 16px; }
 .status-toggles { display: flex; gap: 4px; flex-wrap: wrap; }
+.chip-toggle { font: inherit; font-size: 13px; color: var(--ink); cursor: pointer; }
+.chip-toggle:hover { border-color: var(--brand); }
+.chip-toggle i { background: var(--dot); border: 1.5px solid var(--dot); box-sizing: border-box; }
+.chip-toggle[aria-pressed="false"] { color: var(--muted); }
+.chip-toggle[aria-pressed="false"] i { background: transparent; }
+.hotspot.off { background: rgba(255, 255, 255, .9); pointer-events: none; box-shadow: none; }
 .map-controls {
   display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 10px 12px; border-bottom: 1px solid var(--line);

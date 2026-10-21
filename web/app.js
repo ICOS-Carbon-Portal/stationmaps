@@ -42,6 +42,23 @@ const statusShown = { labelled: true, inlabelling: true, planned: false };
 const statusGroup = (status) => (status === "Labelled" ? "labelled" : String(status).startsWith("In labelling") ? "inlabelling" : "planned");
 const shownByStatus = (f) => statusShown[statusGroup(f.properties.status)];
 
+// Domain toggles on a country page (the chips next to its name): hide a domain's stations on that
+// country's maps. Figures are images, so hidden stations get a white mask there.
+const domainShown = { atmosphere: true, ecosystem: true, ocean: true };
+
+function resetDomains() {
+  for (const t in domainShown) domainShown[t] = true;
+}
+
+function applyDomains() {
+  document.querySelectorAll("#country-chips [data-domain]").forEach((b) => b.setAttribute("aria-pressed", String(domainShown[b.dataset.domain])));
+  document.querySelectorAll("#figures .hotspot").forEach((h) => {
+    h.classList.toggle("off", domainShown[h.dataset.theme] === false);
+    if (h.classList.contains("off") && h === state.popupFor) closePopup();
+  });
+  applyStatusToDetailed();
+}
+
 function renderStatusToggles() {
   document.querySelectorAll("[data-status-toggles]").forEach((box) => {
     // All stations (as in the KPI boxes and tables) of the network, or of the country on its detailed map.
@@ -126,6 +143,13 @@ function setupChrome() {
   document.addEventListener("click", (e) => {
     const key = e.target.closest("[data-status]")?.dataset.status;
     if (key) toggleStatus(key);
+  });
+  $("#country-chips").addEventListener("click", (e) => {
+    const chip = e.target.closest("[data-domain], [data-domain-reset]");
+    if (!chip) return;
+    if (chip.dataset.domain) domainShown[chip.dataset.domain] = !domainShown[chip.dataset.domain];
+    else resetDomains();
+    applyDomains();
   });
   $("#mode-figures").addEventListener("click", () => setMode("figures"));
   $("#mode-detailed").addEventListener("click", () => setMode("detailed"));
@@ -264,9 +288,12 @@ function showCountry(cc, tab) {
   document.title = `${c.name} · ICOS Station Maps`;
   $("#crumb-country").textContent = c.name;
   $("#country-name").textContent = c.name;
-  $("#country-chips").innerHTML = `<span class="chip">${c.stations} stations</span>` +
+  if (state.cc !== cc) resetDomains();  // the domain choice belongs to one country's maps
+  $("#country-chips").innerHTML =
+    `<button type="button" class="chip chip-toggle" data-domain-reset title="Show all domains">${c.stations} stations</button>` +
     Object.entries(c.by_theme || {}).filter(([, n]) => n).map(([t, n]) =>
-      `<span class="chip"><i style="background:${COLORS[t]}"></i>${n} ${THEME_NAMES[t]}</span>`).join("") +
+      `<button type="button" class="chip chip-toggle" data-domain="${t}" aria-pressed="${domainShown[t]}"
+        title="Show or hide ${THEME_NAMES[t].toLowerCase()} stations on the maps"><i style="--dot:${COLORS[t]}"></i>${n} ${THEME_NAMES[t]}</button>`).join("") +
     (c.not_yet_labelled ? `<span class="chip">${c.not_yet_labelled} not yet labelled</span>` : "");
 
   for (const t of ["maps", "stations"]) {
@@ -281,7 +308,7 @@ function showCountry(cc, tab) {
     const img = versioned(p.files.png || p.files.svg);
     const spots = (p.hotspots?.points || []).map((h) => {
       const row = stationRow(cc, h.id);
-      return `<button class="hotspot" data-id="${esc(h.id)}" style="left:${h.x * 100}%;top:${h.y * 100}%;width:${p.hotspots.r * 200}%"
+      return `<button class="hotspot${domainShown[row?.theme] === false ? " off" : ""}" data-id="${esc(h.id)}" data-theme="${esc(row?.theme)}" style="left:${h.x * 100}%;top:${h.y * 100}%;width:${p.hotspots.r * 200}%"
         aria-label="${esc(row?.name ?? h.id)}: station details"></button>`;
     }).join("");
     const width = p.hotspots?.r ? Math.round(MARKER_PX / (2 * p.hotspots.r)) : 600;
@@ -507,7 +534,8 @@ function addStations(map, cc, ids, small) {
     el.textContent = r?.map_number ?? "";
     const marker = new maplibregl.Marker({ element: el }).setLngLat(anchorOf(f.geometry)).addTo(map);
     el.dataset.group = statusGroup(f.properties.status);
-    el.hidden = !statusShown[el.dataset.group];
+    el.dataset.theme = f.properties.theme;
+    el.hidden = !markerShown(el);
     map._icosMarkers.push(marker);
     if (!small && r) {
       el.title = r.name;
@@ -516,15 +544,19 @@ function addStations(map, cc, ids, small) {
   }
 }
 
+const markerShown = (el) => statusShown[el.dataset.group] && domainShown[el.dataset.theme] !== false;
+
 function soopFilter() {
-  return ["in", ["get", "group"], ["literal", Object.keys(statusShown).filter((k) => statusShown[k])]];
+  // Ship lines are ocean stations: hidden with the ocean domain, otherwise by labelling status.
+  const groups = domainShown.ocean ? Object.keys(statusShown).filter((k) => statusShown[k]) : [];
+  return ["in", ["get", "group"], ["literal", groups]];
 }
 
 function applyStatusToDetailed() {
   for (const map of state.dmaps || []) {
     for (const m of map._icosMarkers || []) {
       const el = m.getElement();
-      el.hidden = !statusShown[el.dataset.group];
+      el.hidden = !markerShown(el);
       if (el.hidden && m.getPopup()?.isOpen()) m.togglePopup();
     }
     if (map.getLayer("soop")) map.setFilter("soop", soopFilter());

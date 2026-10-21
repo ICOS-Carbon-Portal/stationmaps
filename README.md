@@ -91,7 +91,9 @@ zoom 8.5 inwards, TOP250raster to TOP25raster by zoom level (`DETAIL_OVERLAYS` i
 
 The front-page map and the detailed maps have **Labelled / In labelling / Planned** toggles (Labelled
 and In labelling on by default): "In labelling" are stations part-way through the labelling steps, "Planned" the rest
-that are not labelled yet. The print figures always show all stations.
+that are not labelled yet. The print figures always show all stations. On a country page, the domain
+chips next to the name (Atmosphere / Ecosystem / Ocean) show or hide that domain's stations on the
+figures (masked) and the detailed map; the total-stations chip shows all again.
 
 A partial build (`icos-maps FR`) updates the existing site instead of replacing it. The GitHub Actions
 workflow in [.github/workflows/maps.yml](.github/workflows/maps.yml) rebuilds every night and on
