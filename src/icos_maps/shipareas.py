@@ -16,7 +16,7 @@ from shapely.ops import unary_union
 from .layout import _crs_for
 
 MAX_LAT = 85.0  # tracks further north are dropped, so no area wraps around the pole
-FRONT_PAGE_BAND_M = 50_000  # band half-width for the front-page maps
+FRONT_PAGE_BAND_M = 25_000  # band half-width for the front-page maps
 
 
 def _grow(mask: np.ndarray, k: int) -> np.ndarray:
