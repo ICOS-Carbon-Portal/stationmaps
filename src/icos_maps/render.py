@@ -292,7 +292,7 @@ def _locator(fig, ax, panel: Panel, cc: str, frame, corner_box):
         sp.set_linewidth(0.8)
 
 
-SOOP_AREA_FRAC = 0.006  # half-width of a ship's track band, as a fraction of the panel width
+SOOP_AREA_FRAC = 0.0096  # half-width of a ship's track band, as a fraction of the panel width
 # One colour per ship, so overlapping areas stay apart (blues and teals around the ocean colour).
 SOOP_AREA_COLORS = ["#00A6C8", "#2F5DA8", "#3BAA8F", "#7A5FB5", "#C98A1B", "#5FB9E6", "#1D7F7A"]
 LEGEND_ROW_MM = 3.4  # height of one legend line; the footer grows when the legend has many
