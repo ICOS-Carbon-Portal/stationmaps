@@ -95,8 +95,8 @@ that are not labelled yet. The print figures always show all stations. On a coun
 chips next to the name (Atmosphere / Ecosystem / Ocean) show or hide that domain's stations on the
 figures (masked) and the detailed map; the total-stations chip shows all again.
 
-**Ship tracks as lines or areas.** Country figures with ship (SOOP) tracks are also built in an
-"areas" version (`*_areas.{svg,pdf,png}`): each ship's tracks become one shaded "area covered by SOOP
+**Ship tracks as lines or areas.** Country figures with ocean stations of type SOOP line (ships of
+opportunity) are also built in an "areas" version (`*_areas.{svg,pdf,png}`): each ship's tracks become one shaded "area covered by SOOP
 line", in its own colour, drawn under the countries so land covers it, with one legend line per ship.
 A **Ship tracks: Lines | Areas** switch on those country pages and on the front-page map (where the
 areas come from `soop_areas.geojson`) shows either; lines stay the default. Areas are computed on a

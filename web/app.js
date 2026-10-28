@@ -231,7 +231,7 @@ function drawMap() {
     const areas = state.shipAreas.features.filter((f) => shownByStatus(f) && d3.geoArea(f) < 2 * Math.PI);
     svg.append("g").selectAll("path").data(areas).join("path").attr("class", "ship-area").attr("d", path)
       .attr("fill", (f) => f.properties.colour).attr("stroke", (f) => f.properties.colour)
-      .append("title").text((f) => `${f.properties.name}: area covered by SOOP line`);
+      .append("title").text((f) => `${f.properties.name} (SOOP line): area covered`);
   }
   // A shape covering more than half the globe has the wrong winding; d3 would paint it over everything.
   const features = outlines.features.filter((f) => d3.geoArea(f) < 2 * Math.PI);
@@ -263,7 +263,8 @@ function drawMap() {
   const lines = state.stations.features.filter((f) => f.geometry.type !== "Point" && shownByStatus(f));
   const points = state.stations.features.filter((f) => f.geometry.type === "Point" && shownByStatus(f));
   if (state.shipView !== "areas") svg.append("g").selectAll("path").data(lines).join("path").attr("class", "soop").attr("d", path);
-  $("#legend-soop").innerHTML = state.shipView === "areas" ? '<i class="area"></i>SOOP area' : '<i class="line"></i>SOOP line';
+  // "SOOP line" is the station type (ships of opportunity); only the swatch follows how tracks are drawn.
+  $("#legend-soop").innerHTML = `<i class="${state.shipView === "areas" ? "area" : "line"}"></i>SOOP line`;
   svg.append("g").selectAll("circle").data(points).join("circle")
     .attr("class", "station")
     .attr("r", world ? Math.max(2, width / 300) : Math.max(2, width / 380))

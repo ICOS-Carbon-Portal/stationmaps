@@ -209,7 +209,7 @@ def _legend(fig, themes, has_lines, ship_areas=None):
     handles = [Line2D([], [], marker="o", linestyle="", markersize=5.5, markerfacecolor=COLORS[t], markeredgecolor="white",
                       markeredgewidth=0.4, label=THEME_LABEL[t]) for t in themes]
     if has_lines and ship_areas:
-        # One entry per ship: "Area covered by SOOP line" with the ship's number and name.
+        # One entry per ship: the area it covers, labelled with its number, name and station type.
         handles += [Patch(facecolor=colour, alpha=0.35, edgecolor=colour, linewidth=0.8, label=label) for colour, label in ship_areas]
     elif has_lines:
         handles.append(Line2D([], [], color=COLORS["soop"], linewidth=0.9, label="Ship of Opportunity (SOOP) Line"))
@@ -376,7 +376,7 @@ def render_panel(panel: Panel, cc: str, stations: gpd.GeoDataFrame, numbers: dic
     ship_areas = None
     if areas:
         colours = soop_area_colours(lines)
-        ship_areas = [(colours[sid], f"{numbers.get(sid, '')} {name} – SOOP area".strip())
+        ship_areas = [(colours[sid], f"{numbers.get(sid, '')} {name} (SOOP line)".strip())
                       for sid, name in sorted(zip(lines["id"], lines["name"]), key=lambda x: numbers.get(x[0], 0))]
     _legend(fig, [t for t in ("ocean", "atmosphere", "ecosystem") if (st["theme"] == t).any()],
             st.geometry.geom_type.str.contains("Line").any(), ship_areas=ship_areas)
