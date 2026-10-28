@@ -150,6 +150,7 @@ function setupChrome() {
     if (view) setShipView(view);
   });
   renderShipToggles();
+  document.querySelectorAll("[data-export]").forEach((b) => b.addEventListener("click", () => exportMap(b.dataset.export)));
   $("#country-chips").addEventListener("click", (e) => {
     const chip = e.target.closest("[data-domain], [data-domain-reset]");
     if (!chip) return;
@@ -271,6 +272,115 @@ function drawMap() {
     .attr("fill", (f) => COLORS[f.properties.theme])
     .attr("transform", (f) => `translate(${projection(f.geometry.coordinates)})`)
     .attr("display", (f) => (projection(f.geometry.coordinates) ? null : "none"));
+}
+
+// Download the front-page map as shown (view, status toggles, ship tracks), with a legend and credits.
+// Colours are read from the page in the light theme and written into the file, so it stands alone.
+const EXPORT_PROPS = ["fill", "fill-opacity", "stroke", "stroke-width", "stroke-opacity", "opacity"];
+const EXPORT_FONT = "'Open Sans', Arial, Helvetica, sans-serif";
+
+function mapForExport() {
+  const live = $("#europe-map");
+  highlight(null);
+  const root = document.documentElement, theme = root.getAttribute("data-theme");
+  root.setAttribute("data-theme", "light");
+  const clone = live.cloneNode(true);
+  const src = live.querySelectorAll("*"), dst = clone.querySelectorAll("*");
+  src.forEach((el, i) => {
+    const cs = getComputedStyle(el), out = dst[i];
+    out.removeAttribute("class");
+    for (const a of ["tabindex", "role", "aria-label", "data-cc"]) out.removeAttribute(a);
+    if (el.getAttribute("display") === "none") return;
+    for (const prop of EXPORT_PROPS) out.setAttribute(prop, cs.getPropertyValue(prop));
+  });
+  const colour = (name) => getComputedStyle(root).getPropertyValue(name).trim();
+  const palette = { ink: colour("--ink"), muted: colour("--muted"), soop: colour("--soop"),
+    ...Object.fromEntries(Object.keys(THEME_NAMES).map((t) => [t, colour(`--${t}`)])) };
+  theme === null ? root.removeAttribute("data-theme") : root.setAttribute("data-theme", theme);
+  clone.querySelectorAll("title").forEach((t) => t.remove());
+
+  const [, , w, h] = live.getAttribute("viewBox").split(" ").map(Number);
+  const u = w / 900;  // text and legend scale with the map
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  const head = 34 * u, foot = 44 * u, H = h + head + foot;
+  svg.setAttribute("xmlns", ns);
+  svg.setAttribute("viewBox", `0 0 ${w} ${H}`);
+  svg.setAttribute("width", w);
+  svg.setAttribute("height", H);
+  const add = (parent, tag, attrs, text) => {
+    const el = parent.appendChild(document.createElementNS(ns, tag));
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    if (text != null) el.textContent = text;
+    return el;
+  };
+  add(svg, "rect", { width: w, height: H, fill: "#FFFFFF" });
+  const world = state.view === "world";
+  const shown = STATUS_GROUPS.filter(([k]) => statusShown[k]).map(([, l]) => l);
+  add(svg, "text", { x: 16 * u, y: 24 * u, "font-family": EXPORT_FONT, "font-size": 16 * u, "font-weight": 700, fill: palette.ink },
+    `ICOS station network${world ? ", world" : ""}`);
+  add(svg, "text", { x: w - 16 * u, y: 24 * u, "font-family": EXPORT_FONT, "font-size": 11 * u, fill: palette.muted, "text-anchor": "end" },
+    `Stations: ${shown.join(", ") || "none"}`);
+  add(add(svg, "clipPath", { id: "map-frame" }), "rect", { width: w, height: h });
+  const map = add(add(svg, "g", { transform: `translate(0 ${head})` }), "g", { id: "map", "clip-path": "url(#map-frame)" });
+  while (clone.firstChild) map.appendChild(clone.firstChild);
+
+  const legend = add(svg, "g", { id: "legend", "font-family": EXPORT_FONT, "font-size": 11 * u, fill: palette.ink });
+  let x = 16 * u;
+  const y = head + h + 18 * u;
+  for (const [t, name] of Object.entries(THEME_NAMES)) {
+    add(legend, "circle", { cx: x + 5 * u, cy: y - 4 * u, r: 5 * u, fill: palette[t] });
+    add(legend, "text", { x: x + 14 * u, y }, name);
+    x += (24 + name.length * 6.5) * u;
+  }
+  if (state.shipView === "areas") add(legend, "rect", { x, y: y - 9 * u, width: 16 * u, height: 10 * u, rx: 2 * u, fill: palette.ocean, "fill-opacity": 0.25, stroke: palette.ocean });
+  else add(legend, "line", { x1: x, y1: y - 4 * u, x2: x + 16 * u, y2: y - 4 * u, stroke: palette.soop, "stroke-width": 2 * u });
+  add(legend, "text", { x: x + 22 * u, y }, "SOOP line");
+  add(svg, "text", { x: 16 * u, y: H - 10 * u, "font-family": EXPORT_FONT, "font-size": 9 * u, fill: palette.muted },
+    `ICOS Carbon Portal, ${state.manifest.generated.slice(0, 10)} · Boundaries © EuroGeographics · ${location.origin}/`);
+  return svg;
+}
+
+async function exportMap(format) {
+  const svg = mapForExport();
+  const name = `ICOS_station_network_${state.view === "world" ? "world" : "europe"}`;
+  const text = new XMLSerializer().serializeToString(svg);
+  if (format === "svg") return saveBlob(new Blob([text], { type: "image/svg+xml" }), `${name}.svg`);
+  const w = Number(svg.getAttribute("width")), h = Number(svg.getAttribute("height"));
+  if (format === "png") {
+    const scale = 3200 / w;
+    const img = new Image();
+    img.src = URL.createObjectURL(new Blob([text], { type: "image/svg+xml" }));
+    await img.decode();
+    const canvas = Object.assign(document.createElement("canvas"), { width: Math.round(w * scale), height: Math.round(h * scale) });
+    canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(img.src);
+    return canvas.toBlob((b) => saveBlob(b, `${name}.png`), "image/png");
+  }
+  // PDF: vector, via jsPDF and svg2pdf, loaded on first use.
+  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+  await loadScript("https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.3/dist/svg2pdf.umd.min.js");
+  const doc = new window.jspdf.jsPDF({ orientation: w > h ? "landscape" : "portrait", unit: "pt", format: [w, h] });
+  svg.style.position = "absolute";
+  svg.style.left = "-99999px";
+  document.body.appendChild(svg);  // svg2pdf reads styles from the document
+  try {
+    await doc.svg(svg, { x: 0, y: 0, width: w, height: h });
+  } finally {
+    svg.remove();
+  }
+  saveBlob(doc.output("blob"), `${name}.pdf`);
+}
+
+const loadScript = (src) => (loadScript[src] ??= new Promise((resolve, reject) =>
+  document.head.appendChild(Object.assign(document.createElement("script"), { src, onload: resolve, onerror: reject }))));
+
+function saveBlob(blob, filename) {
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: filename });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 function outsideEurope(f) {
@@ -779,13 +889,7 @@ class StationTable {
     } else {
       blob = kmlBlob(this.shown, this.columns, this.fileBase);
     }
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${this.fileBase}.${format}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    saveBlob(blob, `${this.fileBase}.${format}`);
   }
 }
 

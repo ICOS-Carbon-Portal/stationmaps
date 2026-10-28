@@ -324,3 +324,4 @@ td.date { white-space: nowrap; font-variant-numeric: tabular-nums; }
   .inset .inset-map { height: 100px; }
   .map-legend { position: static; border: 0; border-top: 1px solid var(--line); border-radius: 0; }
 }
+.map-export .button { font-size: 12px; padding: 4px 10px; }

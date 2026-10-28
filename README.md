@@ -67,6 +67,8 @@ Station tables show coordinates, elevation and climate zone (NA for ship lines),
 filter per column (text anywhere; numbers and dates also `>500`, `<2020`, `100-500`) and download the
 rows shown as CSV, XLSX or KML. Links are shareable (`#/world`, `#/FR`, `#/FR/stations`, `#/FR/maps` for the figures,
 `#/FR/detailed` for the detailed map, which adds `@lat,lon,zoomz` as you pan and zoom).
+The front-page map downloads as SVG, PDF or PNG exactly as shown (Europe or World view, the status
+toggles, ship tracks as lines or areas), with a legend and credits; the files are made in the browser.
 Serve the folder with any web server, e.g. `python -m http.server -d out/web`.
 
 It reads these files, which other sites can use too:
