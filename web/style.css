@@ -91,6 +91,9 @@ main { flex: 1; width: 100%; max-width: 1360px; margin: 0 auto; padding: 20px 16
 .view-toggle a[aria-selected="true"] { background: var(--brand); color: #fff; }
 .view-toggle a:hover:not([aria-selected="true"]) { color: var(--ink); }
 .view-toggle.inline { position: static; box-shadow: none; }
+.ship-toggle { align-items: center; }
+.toggle-label { font-size: 12px; color: var(--muted); padding: 0 6px 0 8px; }
+#europe-map .ship-area { fill-opacity: .25; stroke-width: .8; stroke-opacity: .9; }
 .view-toggle button {
   font: inherit; font-size: 13px; font-weight: 600; padding: 5px 14px; border: 0; border-radius: 6px;
   background: none; color: var(--muted); cursor: pointer;
@@ -143,6 +146,7 @@ main { flex: 1; width: 100%; max-width: 1360px; margin: 0 auto; padding: 20px 16
 .map-legend i, .chip i, .type i {
   display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px;
 }
+.map-legend i.area { width: 14px; height: 10px; border-radius: 2px; background: color-mix(in srgb, var(--ocean) 30%, transparent); border: 1px solid var(--ocean); }
 .map-legend i.line { width: 14px; height: 2px; border-radius: 0; background: var(--soop); vertical-align: 3px; }
 
 .side { padding: 20px; position: sticky; top: 72px; }

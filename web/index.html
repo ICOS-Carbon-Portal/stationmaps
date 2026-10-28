@@ -40,6 +40,11 @@
       <div class="map-card">
         <div class="map-controls">
           <div class="status-toggles" data-status-toggles role="group" aria-label="Show stations by labelling status"></div>
+          <div class="view-toggle inline ship-toggle" role="group" aria-label="Ship tracks">
+            <span class="toggle-label">Ship tracks</span>
+            <button type="button" data-ship-view="lines">Lines</button>
+            <button type="button" data-ship-view="areas">Areas</button>
+          </div>
           <div class="view-toggle inline" role="tablist" aria-label="Map extent">
             <a role="tab" id="toggle-europe" href="#/">Europe</a>
             <a role="tab" id="toggle-world" href="#/world">World</a>
@@ -51,7 +56,7 @@
           <li><i style="background:var(--atmosphere)"></i>Atmosphere</li>
           <li><i style="background:var(--ecosystem)"></i>Ecosystem</li>
           <li><i style="background:var(--ocean)"></i>Ocean</li>
-          <li><i class="line"></i>SOOP line</li>
+          <li id="legend-soop"><i class="line"></i>SOOP line</li>
         </ul>
       </div>
       <aside class="side">
@@ -87,9 +92,14 @@
     </div>
     <div id="panel-maps" role="tabpanel" aria-labelledby="tab-maps">
       <div class="maps-toolbar" id="maps-toolbar" hidden>
-        <div class="view-toggle inline" role="group" aria-label="Map type">
+        <div class="view-toggle inline" id="mode-toggle" role="group" aria-label="Map type">
           <button type="button" id="mode-figures" aria-pressed="true">Figures</button>
           <button type="button" id="mode-detailed" aria-pressed="false">Detailed map</button>
+        </div>
+        <div class="view-toggle inline ship-toggle" id="ship-toggle" role="group" aria-label="Ship tracks" hidden>
+          <span class="toggle-label">Ship tracks</span>
+          <button type="button" data-ship-view="lines">Lines</button>
+          <button type="button" data-ship-view="areas">Areas</button>
         </div>
         <button type="button" class="ghost" id="detail-home" hidden>↺ Home territory</button>
         <div class="status-toggles" id="detail-status" data-status-toggles role="group" aria-label="Show stations by labelling status" hidden></div>

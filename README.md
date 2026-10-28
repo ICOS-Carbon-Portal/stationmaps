@@ -95,6 +95,16 @@ that are not labelled yet. The print figures always show all stations. On a coun
 chips next to the name (Atmosphere / Ecosystem / Ocean) show or hide that domain's stations on the
 figures (masked) and the detailed map; the total-stations chip shows all again.
 
+**Ship tracks as lines or areas.** Country figures with ship (SOOP) tracks are also built in an
+"areas" version (`*_areas.{svg,pdf,png}`): each ship's tracks become one shaded "area covered by SOOP
+line", in its own colour, drawn under the countries so land covers it, with one legend line per ship.
+A **Ship tracks: Lines | Areas** switch on those country pages and on the front-page map (where the
+areas come from `soop_areas.geojson`) shows either; lines stay the default. Areas are computed on a
+grid ([shipareas.py](src/icos_maps/shipareas.py)): tracks are marked, widened and merged there and the
+outline is traced and smoothed, which takes well under a second even for ships that repeat a route
+hundreds of times (merging that many vector buffers would take minutes). Tracks north of 85°N are
+left out so no area wraps around the pole.
+
 A partial build (`icos-maps FR`) updates the existing site instead of replacing it. The GitHub Actions
 workflow in [.github/workflows/maps.yml](.github/workflows/maps.yml) rebuilds every night and on
 demand, and lists the changes in the run summary.

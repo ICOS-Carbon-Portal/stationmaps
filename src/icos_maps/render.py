@@ -16,7 +16,7 @@ from matplotlib import font_manager
 from matplotlib.collections import PatchCollection
 from matplotlib.lines import Line2D
 from matplotlib.path import Path
-from matplotlib.patches import PathPatch
+from matplotlib.patches import Patch, PathPatch
 from matplotlib.patches import Polygon as MplPolygon
 from matplotlib.patches import Rectangle
 from shapely.geometry import box
@@ -102,16 +102,16 @@ def _nice(length_m):
     return 10 * exp
 
 
-def new_map_figure(extent, width_mm=PAGE_W_MM, max_h_mm=MAX_MAP_H_MM, header_mm=0):
+def new_map_figure(extent, width_mm=PAGE_W_MM, max_h_mm=MAX_MAP_H_MM, header_mm=0, footer_mm=FOOTER_MM):
     """Figure whose height follows the extent's shape, with the map on top and a footer strip below."""
     aspect = (extent[3] - extent[1]) / (extent[2] - extent[0])
     map_w = width_mm - 2 * MARGIN_MM
     map_h = map_w * aspect
     if map_h > max_h_mm:
         map_h, map_w = max_h_mm, max_h_mm / aspect
-    fig_h = map_h + FOOTER_MM + MARGIN_MM + header_mm
+    fig_h = map_h + footer_mm + MARGIN_MM + header_mm
     fig = plt.figure(figsize=(width_mm * MM, fig_h * MM))
-    ax = fig.add_axes([(width_mm - map_w) / 2 / width_mm, FOOTER_MM / fig_h, map_w / width_mm, map_h / fig_h])
+    ax = fig.add_axes([(width_mm - map_w) / 2 / width_mm, footer_mm / fig_h, map_w / width_mm, map_h / fig_h])
     ax.set_gid("map")
     ax.set_xlim(extent[0], extent[2])
     ax.set_ylim(extent[1], extent[3])
@@ -205,10 +205,13 @@ def _scalebar(fig, ax, extent):
     sax.text(11, 1.0, "N", ha="center", va="bottom", fontsize=5.5, fontweight="bold")
 
 
-def _legend(fig, themes, has_lines):
+def _legend(fig, themes, has_lines, ship_areas=None):
     handles = [Line2D([], [], marker="o", linestyle="", markersize=5.5, markerfacecolor=COLORS[t], markeredgecolor="white",
                       markeredgewidth=0.4, label=THEME_LABEL[t]) for t in themes]
-    if has_lines:
+    if has_lines and ship_areas:
+        # One entry per ship: "Area covered by SOOP line" with the ship's number and name.
+        handles += [Patch(facecolor=colour, alpha=0.35, edgecolor=colour, linewidth=0.8, label=label) for colour, label in ship_areas]
+    elif has_lines:
         handles.append(Line2D([], [], color=COLORS["soop"], linewidth=0.9, label="Ship of Opportunity (SOOP) Line"))
     leg = fig.legend(handles=handles, loc="lower right", bbox_to_anchor=(0.98, _fy(fig, 4)), frameon=False, fontsize=6,
                      handletextpad=0.4, labelspacing=0.35, borderaxespad=0)
@@ -289,15 +292,42 @@ def _locator(fig, ax, panel: Panel, cc: str, frame, corner_box):
         sp.set_linewidth(0.8)
 
 
+SOOP_AREA_FRAC = 0.012  # half-width of a ship's track band, as a fraction of the panel width
+# One colour per ship, so overlapping areas stay apart (blues and teals around the ocean colour).
+SOOP_AREA_COLORS = ["#00A6C8", "#2F5DA8", "#3BAA8F", "#7A5FB5", "#C98A1B", "#5FB9E6", "#1D7F7A"]
+LEGEND_ROW_MM = 3.4  # height of one legend line; the footer grows when the legend has many
+
+
+def soop_areas(lines: gpd.GeoDataFrame, extent) -> dict:
+    """Each ship's tracks as one area (see shipareas). Drawn below the countries, so land covers
+    them. Returns {station id: polygon}."""
+    from .shipareas import areas_in_crs
+
+    return areas_in_crs(lines, SOOP_AREA_FRAC * (extent[2] - extent[0]))
+
+
+def soop_area_colours(lines) -> dict:
+    return {sid: SOOP_AREA_COLORS[i % len(SOOP_AREA_COLORS)] for i, sid in enumerate(sorted(lines["id"]))}
+
+
 def draw_stations(ax, stations: gpd.GeoDataFrame, extent, numbers: dict | None, colour_key="theme",
-                  marker_pt=MARKER_PT, spread=True, line_width=0.7):
-    """Lines first, then markers (spread apart where they overlap), then numbers on top."""
+                  marker_pt=MARKER_PT, spread=True, line_width=0.7, areas: dict | None = None):
+    """Lines (or, with `areas`, shaded ship areas) first, then markers (spread apart where they
+    overlap), then numbers on top."""
     lines = stations[stations.geometry.geom_type.isin(["LineString", "MultiLineString"])]
-    if len(lines):
-        for _, row in lines.iterrows():
+    area_colours = soop_area_colours(lines) if areas else {}
+    for _, row in lines.iterrows():
+        if areas and row["id"] in areas:
+            colour = area_colours[row["id"]]
+            # Below the countries (zorder 1-2), which cover the parts over land.
+            _draw_polys(ax, [areas[row["id"]]], f"soop-area-{row['id']}", facecolor=colour, alpha=0.20, zorder=0.5)
+            _draw_polys(ax, [areas[row["id"]]], f"soop-area-edge-{row['id']}", facecolor="none", edgecolor=colour,
+                        linewidth=0.8, zorder=0.6)
+        else:
             gpd.GeoSeries([row.geometry]).plot(ax=ax, color=COLORS["soop"], linewidth=line_width, zorder=3)
             ax.collections[-1].set_gid(f"soop-{row['id']}")
-    anchors = [(_line_anchor(g) if g.geom_type != "Point" else g) for g in stations.geometry]
+    anchors = [(areas[sid].representative_point() if areas and sid in areas else _line_anchor(g) if g.geom_type != "Point" else g)
+               for sid, g in zip(stations["id"], stations.geometry)]
     xy = np.array([[p.x, p.y] for p in anchors]) if anchors else np.empty((0, 2))
     m_per_pt = _metres_per_point(ax, extent)
     moved = _spread(xy, marker_pt * 1.05 * m_per_pt) if len(xy) and spread else xy
@@ -317,7 +347,7 @@ def draw_stations(ax, stations: gpd.GeoDataFrame, extent, numbers: dict | None, 
 
 
 def render_panel(panel: Panel, cc: str, stations: gpd.GeoDataFrame, numbers: dict, out_base: FilePath, formats, res="03",
-                 dpi=300, marker_scale=1.0):
+                 dpi=300, marker_scale=1.0, soop_as_area=False):
     st = stations[stations["id"].isin(panel.station_ids)].to_crs(panel.crs)
     focus = gpd.GeoSeries([territory_geom(cc)], crs="EPSG:4326")
     focus = gpd.clip(focus, box(*_extent_lonlat(panel.crs, panel.extent))).to_crs(panel.crs)
@@ -327,7 +357,9 @@ def render_panel(panel: Panel, cc: str, stations: gpd.GeoDataFrame, numbers: dic
         anchors = np.array([[p.x, p.y] for p in (_line_anchor(g) if g.geom_type != "Point" else g for g in st.geometry)])
         panel.extent, corner_box = place_locator(panel.extent, frame[1], focus.union_all(), anchors.reshape(-1, 2))
 
-    fig, ax = new_map_figure(panel.extent)
+    lines = st[st.geometry.geom_type.isin(["LineString", "MultiLineString"])]
+    legend_rows = st["theme"].nunique() + (len(lines) if soop_as_area else min(len(lines), 1))
+    fig, ax = new_map_figure(panel.extent, footer_mm=max(FOOTER_MM, 6 + LEGEND_ROW_MM * legend_rows))
     world = _basemap(panel.crs, panel.extent, res if panel.kind != "ocean" else "10")
     _draw_polys(ax, world.geometry, "other-countries", facecolor=COLORS["other_land"], edgecolor=COLORS["border"], linewidth=0.4, zorder=1)
     host_codes = [c for c in st["country"].unique() if c not in TERRITORIES.get(cc, [cc])]
@@ -337,11 +369,17 @@ def render_panel(panel: Panel, cc: str, stations: gpd.GeoDataFrame, numbers: dic
         _draw_polys(ax, host, "host-country", facecolor=COLORS["host_land"], edgecolor=COLORS["border"], linewidth=0.5, zorder=1.5)
     _draw_polys(ax, focus, "focus-country", facecolor=COLORS["focus_land"], edgecolor=COLORS["border"], linewidth=0.6, zorder=2)
     marker_pt = marker_size(ax) * marker_scale
-    moved = draw_stations(ax, st, panel.extent, numbers, marker_pt=marker_pt)
+    areas = soop_areas(lines, panel.extent) if soop_as_area and len(lines) else None
+    moved = draw_stations(ax, st, panel.extent, numbers, marker_pt=marker_pt, areas=areas)
     hotspots = marker_positions(fig, ax, st["id"], moved, marker_pt)
     _scalebar(fig, ax, panel.extent)
+    ship_areas = None
+    if areas:
+        colours = soop_area_colours(lines)
+        ship_areas = [(colours[sid], f"{numbers.get(sid, '')} {name} – SOOP area".strip())
+                      for sid, name in sorted(zip(lines["id"], lines["name"]), key=lambda x: numbers.get(x[0], 0))]
     _legend(fig, [t for t in ("ocean", "atmosphere", "ecosystem") if (st["theme"] == t).any()],
-            st.geometry.geom_type.str.contains("Line").any())
+            st.geometry.geom_type.str.contains("Line").any(), ship_areas=ship_areas)
     if frame:
         _locator(fig, ax, panel, cc, frame, corner_box)
     fig.text(0.98, _fy(fig, 1), GISCO_CREDIT, ha="right", va="bottom", fontsize=3.5, color="#777777", gid="credit")

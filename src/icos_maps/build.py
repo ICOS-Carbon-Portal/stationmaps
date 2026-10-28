@@ -1,5 +1,6 @@
 """Build all outputs: print maps, station tables and web data, plus a change report."""
 
+import copy
 import io
 import json
 import shutil
@@ -164,14 +165,23 @@ def build(out: Path, countries: list[str], formats: list[str], refresh: bool, ov
                  "by_theme": {t: int((st["theme"] == t).sum()) for t in ("atmosphere", "ecosystem", "ocean")},
                  "not_yet_labelled": int((st["status"] != "Labelled").sum()),
                  "unmapped": st.loc[~st["has_geometry"], "id"].tolist(), "panels": []}
+        soop_ids = set(mapped.loc[mapped.geometry.geom_type.isin(["LineString", "MultiLineString"]), "id"])
         for p in panels:
+            fresh = copy.deepcopy(p)  # rendering adjusts the extent (locator inset); the variant starts anew
             base = out / "print" / cc / f"{cc}_{p.key}_{p.kind}"
             hotspots = render_panel(p, cc, mapped, numbers, base, formats)
             bounds = hotspots.pop("bounds")  # lon/lat box of the panel, for the interactive map
-            entry["panels"].append({"key": p.key, "kind": p.kind, "title": panel_title(p, MEMBERS[cc], st), "bounds": bounds,
-                                    "stations": p.station_ids, "files": {f: f"maps/{cc}/{base.name}.{f}" for f in formats},
-                                    "hotspots": hotspots})
-            print(f"  {cc} panel {p.key} ({p.kind}): {len(p.station_ids)} stations")
+            panel_entry = {"key": p.key, "kind": p.kind, "title": panel_title(p, MEMBERS[cc], st), "bounds": bounds,
+                           "stations": p.station_ids, "files": {f: f"maps/{cc}/{base.name}.{f}" for f in formats},
+                           "hotspots": hotspots}
+            if soop_ids & set(p.station_ids):
+                # Variant with each ship's tracks as a shaded area, for comparison on the website.
+                area_base = base.with_name(base.name + "_areas")
+                area_hotspots = render_panel(fresh, cc, mapped, numbers, area_base, formats, soop_as_area=True)
+                area_hotspots.pop("bounds")
+                panel_entry["areas"] = {"files": {f: f"maps/{cc}/{area_base.name}.{f}" for f in formats}, "hotspots": area_hotspots}
+            entry["panels"].append(panel_entry)
+            print(f"  {cc} panel {p.key} ({p.kind}): {len(p.station_ids)} stations" + (" + ship areas" if "areas" in panel_entry else ""))
         write_table(st, numbers, out / "print" / cc / f"{cc}_stations.csv")
         tables[cc] = table_rows(st, numbers)
         manifest["countries"][cc] = entry
@@ -243,6 +253,25 @@ def world_countries() -> gpd.GeoDataFrame:
     return world[world.geometry.geom_type.isin(["Polygon", "MultiPolygon"])][["CNTR_ID", "NAME_ENGL", "member", "geometry"]]
 
 
+def front_page_ship_areas(stations: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """One shaded area per ship for the front-page maps, wound clockwise as d3-geo expects."""
+    from .render import SOOP_AREA_COLORS
+    from .shipareas import areas_lonlat
+
+    lines = stations[(stations["member"] != "") & stations.geometry.notna()]
+    lines = lines[lines.geometry.geom_type.isin(["LineString", "MultiLineString"])].sort_values("id")
+    areas = areas_lonlat(lines)
+    meta = lines.set_index("id")
+    areas["name"] = areas["id"].map(meta["name"])
+    areas["member"] = areas["id"].map(meta["member"])
+    areas["status"] = areas["id"].map(meta["status"])
+    # The same colour as on the ship's country figure (ships numbered per country in id order).
+    order = areas.groupby("member").cumcount()
+    areas["colour"] = [SOOP_AREA_COLORS[i % len(SOOP_AREA_COLORS)] for i in order]
+    areas["geometry"] = areas.geometry.apply(_clockwise)
+    return areas
+
+
 def write_site(out: Path, web: Path, stations, all_numbers, manifest, tables):
     """Static website: the app from web/, the maps, and the data it reads."""
     web.mkdir(parents=True, exist_ok=True)
@@ -262,5 +291,6 @@ def write_site(out: Path, web: Path, stations, all_numbers, manifest, tables):
     pd.DataFrame(stations.drop(columns="geometry")).to_csv(web / "stations.csv", index=False)
     europe_countries().to_file(web / "countries.geojson", driver="GeoJSON", COORDINATE_PRECISION=3)
     world_countries().to_file(web / "world.geojson", driver="GeoJSON", COORDINATE_PRECISION=2)
+    front_page_ship_areas(stations).to_file(web / "soop_areas.geojson", driver="GeoJSON", COORDINATE_PRECISION=3)
     (web / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
     (web / "tables.json").write_text(json.dumps(tables, ensure_ascii=False))

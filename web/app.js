@@ -83,6 +83,7 @@ async function load() {
   try {
     [state.manifest, state.tables, state.countries, state.world, state.stations] = await Promise.all(
       ["manifest.json", "tables.json", "countries.geojson", "world.geojson", "stations.geojson"].map(get));
+    state.shipAreas = await get("soop_areas.geojson").catch(() => ({ features: [] }));
   } catch (e) {
     $("#load-error").hidden = false;
     return;
@@ -144,6 +145,11 @@ function setupChrome() {
     const key = e.target.closest("[data-status]")?.dataset.status;
     if (key) toggleStatus(key);
   });
+  document.addEventListener("click", (e) => {
+    const view = e.target.closest("[data-ship-view]")?.dataset.shipView;
+    if (view) setShipView(view);
+  });
+  renderShipToggles();
   $("#country-chips").addEventListener("click", (e) => {
     const chip = e.target.closest("[data-domain], [data-domain-reset]");
     if (!chip) return;
@@ -220,6 +226,13 @@ function drawMap() {
   const tooltip = $("#tooltip");
 
   if (world) svg.append("path").attr("class", "sphere").attr("d", path({ type: "Sphere" }));
+  if (state.shipView === "areas") {
+    // Below the countries, which cover the parts over land.
+    const areas = state.shipAreas.features.filter((f) => shownByStatus(f) && d3.geoArea(f) < 2 * Math.PI);
+    svg.append("g").selectAll("path").data(areas).join("path").attr("class", "ship-area").attr("d", path)
+      .attr("fill", (f) => f.properties.colour).attr("stroke", (f) => f.properties.colour)
+      .append("title").text((f) => `${f.properties.name}: area covered by SOOP line`);
+  }
   // A shape covering more than half the globe has the wrong winding; d3 would paint it over everything.
   const features = outlines.features.filter((f) => d3.geoArea(f) < 2 * Math.PI);
   svg.append("g").selectAll("path").data(features).join("path")
@@ -249,7 +262,8 @@ function drawMap() {
 
   const lines = state.stations.features.filter((f) => f.geometry.type !== "Point" && shownByStatus(f));
   const points = state.stations.features.filter((f) => f.geometry.type === "Point" && shownByStatus(f));
-  svg.append("g").selectAll("path").data(lines).join("path").attr("class", "soop").attr("d", path);
+  if (state.shipView !== "areas") svg.append("g").selectAll("path").data(lines).join("path").attr("class", "soop").attr("d", path);
+  $("#legend-soop").innerHTML = state.shipView === "areas" ? '<i class="area"></i>SOOP area' : '<i class="line"></i>SOOP line';
   svg.append("g").selectAll("circle").data(points).join("circle")
     .attr("class", "station")
     .attr("r", world ? Math.max(2, width / 300) : Math.max(2, width / 380))
@@ -303,35 +317,60 @@ function showCountry(cc, tab) {
     $(`#panel-${t}`).hidden = t !== tab;
   }
 
-  const figs = $("#figures");
-  figs.innerHTML = c.panels.map((p) => {
-    const img = versioned(p.files.png || p.files.svg);
-    const spots = (p.hotspots?.points || []).map((h) => {
-      const row = stationRow(cc, h.id);
-      return `<button class="hotspot${domainShown[row?.theme] === false ? " off" : ""}" data-id="${esc(h.id)}" data-theme="${esc(row?.theme)}" style="left:${h.x * 100}%;top:${h.y * 100}%;width:${p.hotspots.r * 200}%"
-        aria-label="${esc(row?.name ?? h.id)}: station details"></button>`;
-    }).join("");
-    const width = p.hotspots?.r ? Math.round(MARKER_PX / (2 * p.hotspots.r)) : 600;
-    return `<figure class="figure" style="width:${width}px">
-      <div class="map-frame">
-        <img src="${esc(img)}" alt="${esc(`${c.name}: ${p.title}. Map of ${p.stations.length} stations.`)}" loading="lazy">
-        ${spots}
-      </div>
-      <figcaption>
-        <span class="title"><b>Figure ${esc(p.key)}</b>${esc(p.kind === "home" ? PANEL_KIND.home : p.title)}</span>
-        <span class="dl">${Object.entries(p.files).map(([f, href]) => `<a href="${esc(versioned(href))}" download>${f.toUpperCase()}</a>`).join("")}</span>
-      </figcaption>
-    </figure>`;
-  }).join("");
-
   state.cc = cc;
+  renderFigures(cc);
   renderStatusToggles();
-  $("#maps-toolbar").hidden = !hasDetailed();
+  $("#maps-toolbar").hidden = !hasDetailed() && !hasShipAreas(cc);
+  $("#mode-toggle").hidden = !hasDetailed();
   if (tab === "maps") applyMode();
   else destroyDetailed();
   const unmapped = c.unmapped || [];
   state.countryTable.setRows((state.tables[cc] || []).map((r) => ({ ...r, member: cc })), `${cc}_stations.csv`,
     unmapped.length ? `Not on the maps (no position or route data yet): ${unmapped.join(", ")}.` : "");
+}
+
+// Ship tracks as lines (default) or as shaded "area covered" shapes, on the country figures and the
+// front-page map, so the two can be compared. The choice holds for the visit.
+state.shipView = "lines";
+
+function hasShipAreas(cc) {
+  return state.manifest.countries[cc].panels.some((p) => p.areas);
+}
+
+function renderShipToggles() {
+  document.querySelectorAll("[data-ship-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.shipView === state.shipView)));
+}
+
+function setShipView(view) {
+  state.shipView = view;
+  renderShipToggles();
+  if (state.cc && !$("#view-country").hidden) renderFigures(state.cc);
+  if (!$("#view-europe").hidden) drawMap();
+}
+
+function renderFigures(cc) {
+  const c = state.manifest.countries[cc];
+  $("#ship-toggle").hidden = !hasShipAreas(cc) || (getMode() === "detailed" && hasDetailed());
+  $("#figures").innerHTML = c.panels.map((panel) => {
+    const v = state.shipView === "areas" && panel.areas ? panel.areas : panel;  // files and markers of the chosen version
+    const img = versioned(v.files.png || v.files.svg);
+    const spots = (v.hotspots?.points || []).map((h) => {
+      const row = stationRow(cc, h.id);
+      return `<button class="hotspot${domainShown[row?.theme] === false ? " off" : ""}" data-id="${esc(h.id)}" data-theme="${esc(row?.theme)}" style="left:${h.x * 100}%;top:${h.y * 100}%;width:${v.hotspots.r * 200}%"
+        aria-label="${esc(row?.name ?? h.id)}: station details"></button>`;
+    }).join("");
+    const width = v.hotspots?.r ? Math.round(MARKER_PX / (2 * v.hotspots.r)) : 600;
+    return `<figure class="figure" style="width:${width}px">
+      <div class="map-frame">
+        <img src="${esc(img)}" alt="${esc(`${c.name}: ${panel.title}. Map of ${panel.stations.length} stations.`)}" loading="lazy">
+        ${spots}
+      </div>
+      <figcaption>
+        <span class="title"><b>Figure ${esc(panel.key)}</b>${esc(panel.kind === "home" ? PANEL_KIND.home : panel.title)}</span>
+        <span class="dl">${Object.entries(v.files).map(([f, href]) => `<a href="${esc(versioned(href))}" download>${f.toUpperCase()}</a>`).join("")}</span>
+      </figcaption>
+    </figure>`;
+  }).join("");
 }
 
 function stationRow(cc, id) {
@@ -432,6 +471,7 @@ function applyMode() {
   $("#detail-wrap").hidden = !detailed;
   $("#detail-home").hidden = !detailed;
   $("#detail-status").hidden = !detailed;
+  if (state.cc) $("#ship-toggle").hidden = detailed || !hasShipAreas(state.cc);
   if (detailed) renderDetailed(state.cc);
   else destroyDetailed();
 }
