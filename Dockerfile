@@ -2,7 +2,7 @@
 # publishes the site to a shared volume; nginx serves that volume and proxies /api (compose.yml).
 FROM python:3.12-slim
 
-COPY --from=ghcr.io/astral-sh/uv:0.12.20 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /usr/local/bin/uv
 # rasterio's bundled GDAL needs libexpat, which the slim image lacks.
 RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 && rm -rf /var/lib/apt/lists/*
 
